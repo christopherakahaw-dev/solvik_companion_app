@@ -129,7 +129,7 @@ export default async function handler(req, res) {
           "Never invent a route, timing, event or transport leg. Treat official breakdowns, lift outages and road incidents as important constraints.",
           "Use weather, crowding, accessibility, explicit preferences and learned priorities. A step-free preference is a hard constraint when a more accessible option exists.",
           "The index field is zero-based and is only for selectedIndex. In user-facing reasons, use optionNumber instead: the first route is Option 1, never Option 0.",
-          "The winner reason is the complete user-facing explanation. In one or two concise sentences, explicitly cover: the preference match, weather impact or unavailability, crowding level or unavailability, and every supplied disruption/event that materially affects the choice. If no event is supplied, say there is no known route-specific disruption.",
+          "Keep each reason to one short sentence of at most 25 words. Summarize the main preference match and material tradeoff or disruption. Mention weather or crowding only when it changes the choice; the UI already shows their status. Omit option numbers, filler, and claims about absent disruptions. Preserve meaningful uncertainty.",
           "Explain why each other option fits less well using only supplied facts. Do not mention AI and do not use generic claims such as 'best balance' without naming the deciding evidence.",
           `INPUT_JSON=${JSON.stringify(input)}`,
         ].join("\n"),

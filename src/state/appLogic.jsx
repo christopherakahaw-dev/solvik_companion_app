@@ -110,7 +110,7 @@ export class AppLogic extends Component {
     addEdit: null, placesOpen: false,
     addOpen: false, addFrom: "home", addTo: "work", addDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
     addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcWatch: [], crowdOn: false,
-    hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
+    hoverTab: null, pressTab: null, sheetH: null, sheetDrag: false, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
     screen: loadStored(ONBOARDED_KEY, false) ? "map" : "intro",
     introScenario: null,
@@ -1835,11 +1835,10 @@ export class AppLogic extends Component {
             })),
           },
         });
-      } catch {
-        // Live search is unreachable — fall back to the built-in place list,
-        // labelled as such so it never reads as live data.
+      } catch (error) {
+        // Report the actual search failure instead of blaming the connection.
         if (this.state.query !== query) return;
-        this.setState({ liveResults: null, searchPending: false, searchError: "Can't reach OneMap — check your connection" });
+        this.setState({ liveResults: null, searchPending: false, searchError: error?.message === "Failed to fetch" ? "Search is temporarily unavailable. Please try again." : error?.message || "Place search failed. Please try again." });
       }
     }, 350);
   };
@@ -2256,7 +2255,9 @@ export class AppLogic extends Component {
   level(v) { return v < 0.45 ? "light" : v < 0.75 ? "moderate" : "busy"; }
   barsFor(l) { return [{ style: { width: "11px", height: "11px", borderRadius: "999px", background: CROWD[l], display: "block" } }]; }
   bars(v) { return this.barsFor(this.level(v)); }
-  snaps(H) { return [190, Math.round(H * 0.55), Math.round(H - 104)]; }
+  snaps(H) {
+    return [Math.min(190, H * 0.3), Math.min(H * 0.5, H - 36), Math.max(150, H - 36)];
+  }
 
   // The tall snap point, for when there is a breakdown to read.
   tallSheet() {
@@ -2339,7 +2340,7 @@ export class AppLogic extends Component {
     if (!host) return;
     e.preventDefault();
     const H = host.getBoundingClientRect().height;
-    const snaps = this.snaps(H), startY = e.clientY, startH = this.state.sheetH || snaps[1];
+    const snaps = this.snaps(H), startY = e.clientY, startH = Math.min(el.getBoundingClientRect().height, snaps[2]);
     let moved = false, cur = startH;
     this.setState({ sheetDrag: true });
     const move = (ev) => {
@@ -2867,6 +2868,8 @@ export class AppLogic extends Component {
       userMarker: s.userLoc || null,
       // No destination, no line: the map must not keep drawing the plan you
       // just backed out of.
+      navRouteOption: navOpt,
+      routeOption: dest ? (tripOptions[s.tripRoute] || tripOptions[0]) : null,
       routeCoords: dest ? (tripOptions[s.tripRoute] || tripOptions[0] || {}).geometry || [] : [],
       routeCrowdStations,
       routeCrowdGuide,
@@ -2938,7 +2941,7 @@ export class AppLogic extends Component {
       locateMe: this.locateMe,
       // Sits clear of whichever bottom overlay is currently showing.
       setCrowdBarRef: this.setCrowdBarRef,
-      locateBottom: dest ? `min(${(s.sheetH || 430) + 12}px, calc(100% - 64px))` : `calc(${s.fcPin ? 250 : s.pin ? 210 : 96}px + env(safe-area-inset-bottom))`,
+      locateBottom: dest ? "calc(min(430px, 50%) + 12px)" : `calc(${s.fcPin ? 250 : s.pin ? 210 : 96}px + env(safe-area-inset-bottom))`,
       backToSearch: () => this.chooseDest(null),
       pinCoord: s.pin ? s.pin.ll : null,
       hasPin: !!s.pin && !dest && !s.fcPin && !(s.searchTarget === "area" && s.searchOpen),
@@ -2957,7 +2960,7 @@ export class AppLogic extends Component {
       pinDirections: () => {
         const p = this.state.pin;
         if (!p) return;
-        this.chooseDest({ name: p.name, detail: p.detail, ll: p.ll, kind: "Pin" }, { pin: null, sheetH: 430 });
+        this.chooseDest({ name: p.name, detail: p.detail, ll: p.ll, kind: "Pin" }, { pin: null, sheetH: null });
       },
       pinSearch: () => {
         const p = this.state.pin;
@@ -2965,17 +2968,19 @@ export class AppLogic extends Component {
         this.setState({ query: "", searchOpen: true, searchTarget: "area", liveResults: null, searchPending: false, searchError: null });
       },
       setSheetRef: (el) => { this.sheetEl = el; },
-      sheetWrapStyle: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 15, display: "flex", height: (s.sheetH || 430) + "px", maxHeight: "calc(100% - 70px)", transition: s.sheetDrag ? "none" : "height var(--dur-base) var(--ease-out)" },
+      routeSheetExpanded: !!s.sheetH && s.sheetH >= this.tallSheet() - 1,
+      sheetWrapStyle: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 15, display: "flex", height: s.sheetH ? s.sheetH + "px" : "min(430px, 50%)", maxHeight: "100%", transition: s.sheetDrag ? "none" : "height var(--dur-base) var(--ease-out)" },
       sheetStyle: { flex: 1, minHeight: 0, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box", background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)", display: "flex", flexDirection: "column", padding: "0 16px" },
       sheetGrabStyle: { flex: "none", padding: "10px 0 12px", cursor: s.sheetDrag ? "grabbing" : "grab", touchAction: "none", userSelect: "none" },
       sheetDragStart: (e) => this.startSheetDrag(e),
+      expandRouteSheet: () => this.setState({ sheetH: this.tallSheet(), sheetDrag: false }),
       tripModeTiles: [
-        { id: "bus", label: "Bus", icon: "bus" },
-        { id: "train", label: "Train", icon: "train-front" },
         { id: "transit", label: "Transit", icon: "route" },
         { id: "walk", label: "Walk", icon: "footprints" },
         { id: "cycle", label: "Cycle", icon: "bike" },
         { id: "express", label: "Express", icon: "zap" },
+        { id: "bus", label: "Bus", icon: "bus" },
+        { id: "train", label: "Train", icon: "train-front" },
       ].map((m) => {
         const on = s.tripMode === m.id;
         return {
@@ -3117,7 +3122,7 @@ export class AppLogic extends Component {
       reportPick: s.rep === "pick", reportConfirm: s.rep === "confirm", reportDone: s.rep === "done",
       reportTypes: rTypes, chosenLabel: chosen.label, chosenPts: chosen.pts, severities, severityQ: sevSet.q,
       navSheetStyle: {
-        position: "absolute", left: 0, right: 0, bottom: 0, height: s.navSheetH == null ? 260 : s.navSheetH, maxHeight: "calc(100% - 70px)",
+        position: "absolute", left: 0, right: 0, bottom: 0, height: s.navSheetH == null ? 260 : s.navSheetH, maxHeight: "50%",
         background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)",
         padding: "10px 16px 16px", display: "flex", flexDirection: "column", gap: 11, boxSizing: "border-box", overflow: "hidden",
         transition: s.navDragging ? "none" : "height 260ms cubic-bezier(.2,.7,.3,1)",

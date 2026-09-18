@@ -17,3 +17,16 @@ export function addressDetail(address, postal) {
 export function forecastSlots(slots, now = Date.now()) {
   return [null, ...[...new Set(slots || [])].filter((slot) => Number.isFinite(Date.parse(slot)) && Date.parse(slot) > now).sort((a, b) => Date.parse(a) - Date.parse(b))];
 }
+
+export function journeyDuration(minutes) {
+  const total = Math.max(0, Math.round(Number(minutes) || 0));
+  return total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} m` : `${total} m`;
+}
+
+export function arrivalClockLabel(value) {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || "").trim());
+  if (!match) return value;
+  const hour = Number(match[1]);
+  if (hour > 23 || Number(match[2]) > 59) return value;
+  return `${hour % 12 || 12}:${match[2]} ${hour >= 12 ? "PM" : "AM"}`;
+}

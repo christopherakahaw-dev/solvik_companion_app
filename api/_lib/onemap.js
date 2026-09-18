@@ -1,6 +1,6 @@
 // Server-side OneMap calls. Credentials stay here and are never exposed to
 // the browser.
-import { getOneMapToken } from "./onemapAuth.js";
+import { getOneMapToken, credentialSummary } from "./onemapAuth.js";
 
 const SEARCH_URL = "https://www.onemap.gov.sg/api/common/elastic/search";
 const OVERPASS_URL = "https://overpass-api.de/api/interpreter";
@@ -51,16 +51,19 @@ function buildSearchUrl(query, page) {
 }
 
 async function callSearchPage(query, page, authScheme) {
-  const token = await getOneMapToken({ force: authScheme === "refresh" });
+  const token = authScheme === "public" ? null : await getOneMapToken({ force: authScheme === "refresh" });
   const authorization = authScheme === "bearer" ? `Bearer ${token}` : token;
   const res = await fetch(buildSearchUrl(query, page).toString(), {
-    headers: { Authorization: authorization },
+    headers: token ? { Authorization: authorization } : {},
+    signal: AbortSignal.timeout(12_000),
   });
   return { res, body: await readBody(res) };
 }
 
 async function fetchSearchPage(query, page) {
-  const schemes = learnedSearchAuth
+  const credentials = credentialSummary();
+  const hasCredentials = credentials.hasStaticToken || credentials.hasLogin;
+  const schemes = !hasCredentials ? ["public"] : learnedSearchAuth
     ? [learnedSearchAuth, "raw", "bearer", "refresh"]
     : ["raw", "bearer", "refresh"];
   let lastFailure = null;
@@ -72,6 +75,9 @@ async function fetchSearchPage(query, page) {
       continue;
     }
     if (!res.ok) throw upstreamError("OneMap search", res, body);
+    if (!Array.isArray(body.json?.results)) {
+      throw new Error("OneMap search is unavailable. The server may need a valid OneMap token.");
+    }
     learnedSearchAuth = scheme === "refresh" ? "raw" : scheme;
     return body.json || {};
   }
@@ -296,7 +302,7 @@ export function learnedRequestShape() {
 }
 
 async function callOnce(url, authScheme) {
-  const token = await getOneMapToken({ force: authScheme === "refresh" });
+  const token = authScheme === "public" ? null : await getOneMapToken({ force: authScheme === "refresh" });
   const header = authScheme === "bearer" ? `Bearer ${token}` : token;
   const res = await fetch(url.toString(), { headers: { Authorization: header } });
   return { res, body: await readBody(res) };
