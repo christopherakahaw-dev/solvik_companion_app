@@ -34,6 +34,11 @@ import {
   loadReadAlerts, markAlertsRead, alertId, loadSavedPlaces, saveSavedPlaces,
   savedPlaceDetail, loadPreferences, clearAllUserData,
 } from "../lib/storage";
+import {
+  getStoredToken, setStoredToken, getStoredUser, setStoredUser,
+  isGuestSession, setGuestSession, apiLogin, apiRegister, apiGetMe,
+  apiSyncPreferences, apiLogout,
+} from "../lib/auth";
 
 const ONBOARDED_KEY = KEYS.onboarded;
 const COMMUTES_KEY = KEYS.commutes;
@@ -112,7 +117,24 @@ export class AppLogic extends Component {
     addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcWatch: [], crowdOn: false,
     hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
-    screen: loadStored(ONBOARDED_KEY, false) ? "map" : "intro",
+    currentUser: getStoredUser(),
+    authToken: getStoredToken(),
+    isGuest: isGuestSession(),
+    authBusy: false,
+    authError: null,
+    screen: (() => {
+      const token = getStoredToken();
+      const guest = isGuestSession();
+      if (!token && !guest) return "auth";
+      const storedUser = getStoredUser();
+      const userPrefs = storedUser?.preferences || {};
+      const hasTravelStyle = Boolean(userPrefs.travelStyle || userPrefs.persona || userPrefs.scenario || loadStored(ONBOARDED_KEY, false));
+      if (hasTravelStyle) {
+        store(ONBOARDED_KEY, 1);
+        return "map";
+      }
+      return "intro";
+    })(),
     introScenario: null,
     rep: "pick", repType: null, sev: 1, rewardRedemptions: loadStored(KEYS.rewardRedemptions, []), toast: null, tick: 0,
     planned: { works: [], roadWorks: [], busChanges: [], pending: true, error: null },
@@ -1643,10 +1665,14 @@ export class AppLogic extends Component {
     if (s.fcAt !== prevState.fcAt) this.loadCrowding(s.fcAt || null);
 
     if (s.savedList !== prevState.savedList) store(COMMUTES_KEY, s.savedList);
-    if (s.savedPlaces !== prevState.savedPlaces) saveSavedPlaces(s.savedPlaces);
+    if (s.savedPlaces !== prevState.savedPlaces) {
+      saveSavedPlaces(s.savedPlaces);
+      this.syncPreferencesToAccount();
+    }
     if (s.routingPreferences !== prevState.routingPreferences) {
       store(KEYS.preferences, s.routingPreferences);
       this.refreshAiMemory();
+      this.syncPreferencesToAccount();
     }
     if (s.rewardRedemptions !== prevState.rewardRedemptions) store(KEYS.rewardRedemptions, s.rewardRedemptions);
 
@@ -1691,6 +1717,9 @@ export class AppLogic extends Component {
     this.t0 = Date.now();
     this.iv = setInterval(() => this.setState({ tick: Date.now() }), 1000);
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.handleVisibilityChange);
+    if (this.state.authToken) {
+      this.checkSession();
+    }
     this.loadFaults();
     this.loadCrowding();
     this.loadOutlook();
@@ -1717,6 +1746,7 @@ export class AppLogic extends Component {
     }, 5 * 60 * 1000);
   }
   componentWillUnmount() {
+    if (this._syncPrefTimeout) clearTimeout(this._syncPrefTimeout);
     this._crowdBarObserver?.disconnect();
     clearTimeout(this.bt);
     clearInterval(this.iv);
@@ -2133,7 +2163,7 @@ export class AppLogic extends Component {
       ],
       introRoles: personaList().map((p) => ({
         id: p.id,
-        label: p.id === "fixed" ? "Rachel · fixed schedule" : p.id === "flexible" ? "Arjun · flexible and multi-modal" : "Mdm Lim · step-free travel",
+        label: p.id === "fixed" ? "Fixed Schedule" : p.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
         sub: p.blurb,
         icon: scenarioIcon[p.id],
         route: p.route.label,
@@ -2146,7 +2176,7 @@ export class AppLogic extends Component {
         toggle: () => this.setState({ introScenario: p.id }),
       })),
       introJourney: selected ? {
-        name: selected.id === "fixed" ? "Rachel" : selected.id === "flexible" ? "Arjun" : "Mdm Lim",
+        name: selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
         from: selected.route.from.name,
         to: selected.route.to.name,
         schedule: selected.route.schedule,
@@ -2157,7 +2187,7 @@ export class AppLogic extends Component {
       } : null,
       introSummaryTitle: selected ? `${selected.route.label} is ready` : "Choose a journey first",
       introSummary: summary,
-      introCta: s.introSaving ? "Preparing route…" : ["Choose a commuter", selected ? `Continue with ${selected.id === "fixed" ? "Rachel" : selected.id === "flexible" ? "Arjun" : "Mdm Lim"}` : "Choose one to continue", "Review this setup", "Show my route"][step],
+      introCta: s.introSaving ? "Preparing route…" : ["Choose your style", selected ? `Continue with ${selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible"}` : "Choose one to continue", "Review this setup", "Show my route"][step],
       introError: s.introError || "",
       introCanSkip: false,
       introInvalid: false,
@@ -2173,6 +2203,7 @@ export class AppLogic extends Component {
           ...(s.routingPreferences || {}),
           persona: persona.id,
           scenario: persona.id,
+          travelStyle: persona.id,
           stepFree: persona.id === "stepFree",
           lessWalking: persona.id === "stepFree",
           avoidCrowds: persona.id === "flexible",
@@ -2206,6 +2237,8 @@ export class AppLogic extends Component {
             trips: { key: null, options: [], pending: false, error: null },
           }, this.loadTripOptions);
           store(ONBOARDED_KEY, 1);
+          store(KEYS.preferences, routingPreferences);
+          this.syncPreferencesToAccount();
           this.flash(`${persona.route.label} · planning your best fit`);
         } catch (error) {
           this.setState({ introSaving: false, introError: error?.message || "Setup could not be saved. Try again." });
@@ -2225,6 +2258,141 @@ export class AppLogic extends Component {
     this.setState({ toast });
     if (this.tt) clearTimeout(this.tt);
     this.tt = setTimeout(() => this.setState({ toast: null }), 2600);
+  };
+
+  checkSession = async () => {
+    try {
+      const user = await apiGetMe(this.state.authToken);
+      if (user) {
+        setStoredUser(user);
+        const userPrefs = user.preferences || {};
+        const hasTravelStyle = Boolean(userPrefs.travelStyle || userPrefs.persona || userPrefs.scenario || loadStored(ONBOARDED_KEY, false));
+        if (hasTravelStyle) {
+          store(ONBOARDED_KEY, 1);
+        }
+        this.setState((st) => ({
+          currentUser: user,
+          routingPreferences: user.preferences ? { ...st.routingPreferences, ...user.preferences } : st.routingPreferences,
+          savedPlaces: user.savedPlaces || st.savedPlaces,
+          screen: (st.screen === "intro" && hasTravelStyle) ? "map" : st.screen,
+        }));
+      } else {
+        setStoredToken(null);
+        setStoredUser(null);
+        if (!this.state.isGuest) {
+          this.setState({ currentUser: null, authToken: null, screen: "auth" });
+        }
+      }
+    } catch {
+      // Offline fallback: keep existing local state
+    }
+  };
+
+  authLogin = async (username, password) => {
+    this.setState({ authBusy: true, authError: null });
+    try {
+      const data = await apiLogin({ username, password });
+      setStoredToken(data.token);
+      setStoredUser(data.user);
+      setGuestSession(false);
+      const userPrefs = data.user.preferences || {};
+      const hasTravelStyle = Boolean(userPrefs.travelStyle || userPrefs.persona || userPrefs.scenario || loadStored(ONBOARDED_KEY, false));
+      if (hasTravelStyle) {
+        store(ONBOARDED_KEY, 1);
+      }
+      this.setState((st) => ({
+        authBusy: false,
+        authError: null,
+        currentUser: data.user,
+        authToken: data.token,
+        isGuest: false,
+        routingPreferences: data.user.preferences ? { ...st.routingPreferences, ...data.user.preferences } : st.routingPreferences,
+        savedPlaces: data.user.savedPlaces || st.savedPlaces,
+        screen: hasTravelStyle ? "map" : "intro",
+      }));
+      this.flash(`Welcome back, ${data.user.username}!`);
+    } catch (err) {
+      this.setState({ authBusy: false, authError: err.message || "Failed to sign in." });
+    }
+  };
+
+  authRegister = async (username, password) => {
+    this.setState({ authBusy: true, authError: null });
+    try {
+      const data = await apiRegister({
+        username,
+        password,
+        preferences: this.state.routingPreferences,
+        savedPlaces: this.state.savedPlaces,
+      });
+      setStoredToken(data.token);
+      setStoredUser(data.user);
+      setGuestSession(false);
+      const userPrefs = data.user.preferences || {};
+      const hasTravelStyle = Boolean(userPrefs.travelStyle || userPrefs.persona || userPrefs.scenario || loadStored(ONBOARDED_KEY, false));
+      if (hasTravelStyle) {
+        store(ONBOARDED_KEY, 1);
+      }
+      this.setState({
+        authBusy: false,
+        authError: null,
+        currentUser: data.user,
+        authToken: data.token,
+        isGuest: false,
+        screen: hasTravelStyle ? "map" : "intro",
+      });
+      this.flash(`Account created for ${data.user.username}!`);
+    } catch (err) {
+      this.setState({ authBusy: false, authError: err.message || "Failed to create account." });
+    }
+  };
+
+  authContinueAsGuest = () => {
+    setGuestSession(true);
+    this.setState({
+      isGuest: true,
+      currentUser: null,
+      authError: null,
+      screen: loadStored(ONBOARDED_KEY, false) ? "map" : "intro",
+    });
+    this.flash("Continuing as guest commuter");
+  };
+
+  authLogout = async () => {
+    if (this.state.authToken) {
+      try {
+        await apiLogout(this.state.authToken);
+      } catch {
+        // ignore network error on logout
+      }
+    }
+    setStoredToken(null);
+    setStoredUser(null);
+    setGuestSession(false);
+    this.setState({
+      currentUser: null,
+      authToken: null,
+      isGuest: false,
+      screen: "auth",
+    });
+    this.flash("Signed out");
+  };
+
+  authClearError = () => {
+    this.setState({ authError: null });
+  };
+
+  syncPreferencesToAccount = () => {
+    const { currentUser, authToken, isGuest, routingPreferences, savedPlaces } = this.state;
+    if (!currentUser || !authToken || isGuest) return;
+    if (this._syncPrefTimeout) clearTimeout(this._syncPrefTimeout);
+    this._syncPrefTimeout = setTimeout(async () => {
+      try {
+        await apiSyncPreferences(authToken, { preferences: routingPreferences, savedPlaces });
+      } catch (err) {
+        console.warn("Preference sync failed:", err);
+      }
+    }, 400);
   };
 
   redeemReward = (reward) => {
@@ -2762,6 +2930,16 @@ export class AppLogic extends Component {
         style: { cursor: "pointer", borderRadius: "999px", padding: "8px 14px", font: "var(--weight-semibold) 13px/1 var(--font-body)", border: "1px solid " + (sc === id ? "var(--accent)" : "var(--border-hairline)"), background: sc === id ? "var(--accent)" : "var(--surface-card)", color: sc === id ? "var(--text-on-accent)" : "var(--text-muted)", transition: "background 150ms cubic-bezier(.2,.7,.3,1)" },
       })),
       ...this.introVals(s, sc),
+      isAuth: sc === "auth",
+      authBusy: !!s.authBusy,
+      authError: s.authError || null,
+      currentUser: s.currentUser || null,
+      isGuest: !!s.isGuest,
+      authLogin: this.authLogin,
+      authRegister: this.authRegister,
+      authContinueAsGuest: this.authContinueAsGuest,
+      authLogout: this.authLogout,
+      authClearError: this.authClearError,
       isReport: sc === "report", isRewards: sc === "rewards", isPlan: sc === "plan", isAccount: sc === "account",
       showStatus: ["report", "rewards", "plan", "account"].indexOf(sc) >= 0,
       showTabs: ["map", "plan", "report", "rewards", "account"].indexOf(sc) >= 0 && !(sc === "map" && !!s.dest),

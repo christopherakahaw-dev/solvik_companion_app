@@ -15,6 +15,7 @@
 const ROUTES = {
   ai: () => import("./_handlers/ai.js"),
   arrivals: () => import("./_handlers/arrivals.js"),
+  auth: () => import("./_handlers/auth.js"),
   coverage: () => import("./_handlers/coverage.js"),
   crowding: () => import("./_handlers/crowding.js"),
   diagnostics: () => import("./_handlers/diagnostics.js"),

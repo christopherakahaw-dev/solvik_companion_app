@@ -41,8 +41,8 @@ export function Intro({ v }) {
 
         {v.introS1 && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose a real journey</div>
-            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Solvik will open this route and explain why it fits this commuter better than the alternatives.</div>
+            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose your style</div>
+            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Solvik will open this route and explain why it fits this style better than the alternatives.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 22 }}>
               {v.introRoles.map((r) => (
                 <button key={r.id} onClick={r.toggle} style={styleText(r.style)}>
@@ -69,7 +69,7 @@ export function Intro({ v }) {
 
         {v.introS2 && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.introJourney?.name}&apos;s journey</div>
+            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.introJourney?.name} journey</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>This is the door-to-door journey Solvik will plan immediately.</div>
             {v.introJourney && <div style={{ marginTop: 22, padding: 18, borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)", boxShadow: "var(--shadow-card)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: "14px 12px", alignItems: "start" }}>

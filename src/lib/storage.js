@@ -21,6 +21,9 @@ export const KEYS = {
   alertSeen: "solvik:alertSeen",
   reports: "solvik:reports",
   rewardRedemptions: "solvik:rewardRedemptions",
+  authToken: "solvik:authToken",
+  isGuest: "solvik:isGuest",
+  authUser: "solvik:authUser",
 };
 
 export const PLACE_IDS = ["home", "work", "school"];
@@ -56,6 +59,15 @@ export function store(key, value) {
     localStorage.setItem(storageKey(key), JSON.stringify(value));
   } catch {
     // Out of quota or storage denied; the session still works.
+  }
+}
+
+export function removeStored(key) {
+  try {
+    if (typeof localStorage === "undefined") return;
+    localStorage.removeItem(storageKey(key));
+  } catch {
+    // Storage access denied
   }
 }
 

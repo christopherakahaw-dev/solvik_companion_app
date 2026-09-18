@@ -45,12 +45,12 @@ test("demo data walkthrough", async ({ page }) => {
   await page.waitForTimeout(1200);
   await shot("landing");
 
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
+  await page.getByRole("button", { name: "Choose your style" }).click();
   await page.waitForTimeout(900);
   await shot("onboarding");
 
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
+  await page.getByRole("button", { name: /^Fixed Schedule/ }).click();
+  await page.getByRole("button", { name: /^Continue with Fixed Schedule/ }).click();
   await page.getByRole("button", { name: "Review this setup" }).click();
   await page.getByRole("button", { name: "Show my route" }).click();
   await page.waitForTimeout(1200);

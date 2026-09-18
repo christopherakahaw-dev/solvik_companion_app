@@ -12,9 +12,9 @@
 export const PERSONAS = {
   fixed: {
     id: "fixed",
-    name: "Fixed schedule",
+    name: "Fixed Schedule",
     blurb: "Same trip every day. Tell me only when it actually matters.",
-    example: "Like Rachel — Tampines to Raffles Place, must be at her desk by 08:45.",
+    example: "Tampines to Raffles Place, must be at desk by 08:45.",
     mode: "fast",
     // A five-minute delay is noise to her; fifteen costs a meeting.
     interruptAfterMins: 15,
@@ -39,9 +39,9 @@ export const PERSONAS = {
   },
   flexible: {
     id: "flexible",
-    name: "Flexible and multi-modal",
+    name: "Flexible and Multi-Modal",
     blurb: "I'll leave later to avoid a crush. Cycling and buses both count.",
-    example: "Like Arjun — Punggol to one-north, start time flexible within the hour.",
+    example: "Punggol to one-north, start time flexible within the hour.",
     mode: "quiet",
     interruptAfterMins: 5,
     liftOutageBlocks: false,
@@ -65,9 +65,9 @@ export const PERSONAS = {
   },
   stepFree: {
     id: "stepFree",
-    name: "Step-free access",
+    name: "Easy and Accessible",
     blurb: "I need lifts and shelter, and I plan the whole trip before I leave.",
-    example: "Like Mdm Lim — Bedok to Singapore General Hospital, fortnightly.",
+    example: "Bedok to Singapore General Hospital, fortnightly.",
     mode: "step",
     // She will not improvise on a platform, so anything that breaks the route
     // matters however small the time cost.

@@ -15,9 +15,9 @@ test("every headline feature is reachable from a cold start", async ({ page }) =
   };
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
+  await page.getByRole("button", { name: "Choose your style" }).click();
+  await page.getByRole("button", { name: /^Fixed Schedule/ }).click();
+  await page.getByRole("button", { name: /^Continue with Fixed Schedule/ }).click();
   await page.getByRole("button", { name: "Review this setup" }).click();
   await page.getByRole("button", { name: "Show my route" }).click();
   await page.getByRole("button", { name: "Change destination", exact: true }).click();

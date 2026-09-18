@@ -66,7 +66,7 @@ async function noOverflow(page) {
 test("a new device opens mandatory local setup without an account gate", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("Your commute, minus the guesswork")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Choose a commuter" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose your style" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: /sign in|create account/i })).toHaveCount(0);
   await noOverflow(page);
@@ -493,9 +493,9 @@ test("onboarding saves Rachel's scenario and opens its scheduled route", async (
   });
   await page.evaluate(() => localStorage.removeItem("solvik:onboarded"));
   await page.reload();
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
+  await page.getByRole("button", { name: "Choose your style" }).click();
+  await page.getByRole("button", { name: /^Fixed Schedule/ }).click();
+  await page.getByRole("button", { name: /^Continue with Fixed Schedule/ }).click();
   await expect(page.getByText("Tampines", { exact: true })).toBeVisible();
   await expect(page.getByText("Raffles Place", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Review this setup" }).click();
@@ -517,9 +517,9 @@ test("storage denial does not prevent completing onboarding or browsing tabs", a
     Storage.prototype.setItem = () => { throw new DOMException("Blocked", "SecurityError"); };
   });
   await page.reload();
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
+  await page.getByRole("button", { name: "Choose your style" }).click();
+  await page.getByRole("button", { name: /^Fixed Schedule/ }).click();
+  await page.getByRole("button", { name: /^Continue with Fixed Schedule/ }).click();
   await page.getByRole("button", { name: "Review this setup" }).click();
   await page.getByRole("button", { name: "Show my route" }).click();
   await page.getByRole("button", { name: "Change destination", exact: true }).click();
@@ -535,7 +535,7 @@ test("erase all data removes saved places and local history", async ({ page }) =
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Erase all data from this device" }).click();
-  await expect(page.getByRole("button", { name: "Choose a commuter" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Choose your style" })).toBeVisible();
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("solvik:")))).toEqual([]);
 });
 

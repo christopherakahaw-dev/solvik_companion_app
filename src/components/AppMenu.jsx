@@ -37,8 +37,11 @@ export function AppMenu({ v, onClose }) {
             aria-label="Open device data"
             onClick={() => { v.goAccount(); onClose(); }}
           >
-            <span className="sv-account-avatar"><Icon name="shield-check" size={19} /></span>
-            <span className="sv-account-identity"><strong>Your data</strong><span>Saved on this device</span></span>
+            <span className="sv-account-avatar"><Icon name={v.currentUser ? "user" : "shield-check"} size={19} /></span>
+            <span className="sv-account-identity">
+              <strong>{v.currentUser ? `@${v.currentUser.username}` : "Guest commuter"}</strong>
+              <span>{v.currentUser ? "Database synced" : "Local guest mode"}</span>
+            </span>
             <span className="sv-menu-account-arrow"><Icon name="chevron-right" size={18} /></span>
           </button>
         </div>

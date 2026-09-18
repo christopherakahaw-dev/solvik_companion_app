@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { AppLogic } from "./state/appLogic";
 import { AppHeader, Icon } from "./design-system";
 import { Intro } from "./screens/Intro";
+import { AuthScreen } from "./screens/AuthScreen";
 import { MapScreen } from "./screens/MapScreen";
 import { NavScreen } from "./screens/NavScreen";
 import { ReportScreen } from "./screens/ReportScreen";
@@ -49,7 +50,8 @@ class LocalApp extends AppLogic {
   render() {
     const v = this.renderVals();
     return (
-      <ViewportShell fluid={!v.isIntro} largeText={v.largeText}>
+      <ViewportShell fluid={!v.isIntro && !v.isAuth} largeText={v.largeText}>
+        {v.isAuth && <AuthScreen v={v} />}
         {v.isIntro && <Intro v={v} />}
         {v.isMap && <MapScreen v={v} />}
         {v.isNav && <NavScreen v={v} />}
