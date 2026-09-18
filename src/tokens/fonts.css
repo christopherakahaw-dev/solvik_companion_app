@@ -1,0 +1,5 @@
+/* Solvik core typeface. SUBSTITUTION: no font binaries were supplied with the
+   source screenshots; Archivo (Google Fonts) is the closest match to the warm,
+   sturdy grotesque in the product screens. Swap this import for local
+   @font-face rules if the real brand font is provided. */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap");

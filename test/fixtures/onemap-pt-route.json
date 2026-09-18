@@ -1,0 +1,70 @@
+{
+  "plan": {
+    "itineraries": [
+      {
+        "duration": 2640,
+        "startTime": 1789430400000,
+        "endTime": 1789433040000,
+        "walkTime": 420,
+        "transitTime": 1980,
+        "waitingTime": 240,
+        "walkDistance": 512.3,
+        "transfers": 1,
+        "fare": "1.71",
+        "legs": [
+          {
+            "mode": "WALK",
+            "duration": 240,
+            "distance": 310.5,
+            "startTime": 1789430400000,
+            "endTime": 1789430640000,
+            "from": { "name": "Blk 726 Yishun St 71", "lat": 1.4294, "lon": 103.835 },
+            "to": { "name": "Yishun MRT Station", "stopCode": "NS13", "lat": 1.4294, "lon": 103.8351 },
+            "legGeometry": { "points": "ee~Fyz|xR??" }
+          },
+          {
+            "mode": "SUBWAY",
+            "route": "NS",
+            "routeShortName": "NS",
+            "agencyName": "SMRT",
+            "headsign": "Marina South Pier",
+            "duration": 1500,
+            "startTime": 1789430640000,
+            "endTime": 1789432140000,
+            "from": { "name": "Yishun", "stopCode": "NS13", "lat": 1.4294, "lon": 103.8351 },
+            "to": { "name": "Bishan", "stopCode": "NS17", "lat": 1.3509, "lon": 103.8485 },
+            "intermediateStops": [
+              { "name": "Khatib", "stopCode": "NS14" },
+              { "name": "Yio Chu Kang", "stopCode": "NS15" },
+              { "name": "Ang Mo Kio", "stopCode": "NS16" }
+            ],
+            "legGeometry": { "points": "ee~Fyz|xR??" }
+          },
+          {
+            "mode": "BUS",
+            "route": "410",
+            "routeShortName": "410",
+            "headsign": "Bishan Int",
+            "duration": 480,
+            "startTime": 1789432140000,
+            "endTime": 1789432620000,
+            "from": { "name": "Bishan Stn Exit C", "stopCode": "53061", "lat": 1.3509, "lon": 103.8485 },
+            "to": { "name": "Blk 511", "stopCode": "53069", "lat": 1.3555, "lon": 103.848 },
+            "intermediateStops": [{ "name": "Blk 143", "stopCode": "53065" }],
+            "legGeometry": { "points": "ee~Fyz|xR??" }
+          },
+          {
+            "mode": "WALK",
+            "duration": 180,
+            "distance": 201.8,
+            "startTime": 1789432620000,
+            "endTime": 1789433040000,
+            "from": { "name": "Blk 511", "lat": 1.3555, "lon": 103.848 },
+            "to": { "name": "Destination", "lat": 1.3558, "lon": 103.8478 },
+            "legGeometry": { "points": "ee~Fyz|xR??" }
+          }
+        ]
+      }
+    ]
+  }
+}

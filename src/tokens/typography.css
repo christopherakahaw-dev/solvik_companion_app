@@ -1,0 +1,36 @@
+:root{
+--font-core:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+--font-display:var(--font-core);--font-body:var(--font-core);--font-numeric:var(--font-core);
+--weight-regular:400;--weight-medium:500;--weight-semibold:600;--weight-bold:700;--weight-heavy:800;
+
+/* One factor behind every size, so a persona that needs larger type can raise
+   the whole scale instead of overriding sizes one at a time. Mdm Lim's brief
+   asks for exactly this: "must be usable in large text". */
+--type-scale:1;
+--size-display:calc(38px * var(--type-scale));--size-title:calc(30px * var(--type-scale));--size-heading:calc(22px * var(--type-scale));--size-subheading:calc(19px * var(--type-scale));--size-body:calc(17px * var(--type-scale));--size-body-sm:calc(15px * var(--type-scale));--size-caption:calc(13px * var(--type-scale));--size-micro:calc(12px * var(--type-scale));--size-clock:calc(30px * var(--type-scale));--size-count:calc(36px * var(--type-scale));
+
+--leading-tight:1.04;--leading-snug:1.18;--leading-normal:1.35;--leading-relaxed:1.5;
+
+--tracking-display:-.022em;--tracking-title:-.018em;--tracking-heading:-.012em;--tracking-body:-.004em;--tracking-micro:.1em;--tracking-label:.13em;
+
+/* Role shorthands */
+--type-display:var(--weight-heavy) var(--size-display)/var(--leading-tight) var(--font-display);
+--type-title:var(--weight-bold) var(--size-title)/var(--leading-snug) var(--font-display);
+--type-heading:var(--weight-bold) var(--size-heading)/var(--leading-snug) var(--font-display);
+--type-body:var(--weight-regular) var(--size-body)/var(--leading-normal) var(--font-body);
+--type-body-strong:var(--weight-bold) var(--size-body)/var(--leading-normal) var(--font-body);
+--type-caption:var(--weight-medium) var(--size-caption)/var(--leading-normal) var(--font-body);
+--type-label:var(--weight-bold) var(--size-micro)/1.2 var(--font-body);
+--type-clock:var(--weight-bold) var(--size-clock)/1 var(--font-numeric);
+}
+
+/* Set on the document element, not on the app shell — a custom property is
+   substituted where it is DEFINED, so --size-body computes against :root's own
+   --type-scale and a descendant raising it changes nothing. The sizes and the
+   factor have to live on the same element. 1.25 is
+   enough to matter without reflowing the phone layout into something unusable —
+   every screen is checked for horizontal overflow at this scale in the e2e
+   suite, which is what stops it quietly breaking. */
+[data-text="large"] {
+  --type-scale: 1.25;
+}

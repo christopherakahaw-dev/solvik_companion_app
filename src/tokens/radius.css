@@ -1,0 +1,5 @@
+:root{
+--radius-xs:6px;--radius-sm:10px;--radius-md:14px;--radius-lg:20px;--radius-xl:26px;--radius-2xl:32px;--radius-pill:999px;
+/* Semantic */
+--radius-card:var(--radius-xl);--radius-card-inner:var(--radius-md);--radius-control:var(--radius-pill);--radius-chip:var(--radius-pill);--radius-sheet:var(--radius-2xl);--radius-field:var(--radius-lg);
+}

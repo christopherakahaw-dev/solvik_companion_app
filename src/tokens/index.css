@@ -1,0 +1,85 @@
+@import "./fonts.css";
+@import "./colors.css";
+@import "./typography.css";
+@import "./spacing.css";
+@import "./radius.css";
+@import "./elevation.css";
+@import "./motion.css";
+@import "./base.css";
+
+:root {
+  --crowd-light: oklch(.60 .14 148);
+  --crowd-moderate: oklch(.72 .16 72);
+  --crowd-busy: oklch(.53 .20 27);
+  --status-ok: oklch(.60 .14 148);
+  --status-warn: oklch(.62 .16 72);
+  --status-alert: oklch(.53 .20 27);
+  --status-fault: oklch(.53 .20 27);
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--sand-200);
+  font-family: var(--font-core);
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--text-link); }
+a:hover { color: var(--text-link-hover); }
+*, *::before, *::after { box-sizing: border-box; }
+
+::-webkit-scrollbar { width: 0; height: 0; }
+
+@keyframes sv-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes sv-ping {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.45); opacity: .55; }
+}
+@keyframes sv-spin {
+  to { transform: rotate(360deg); }
+}
+/* The "you are here" dot: a small solid marker with a halo that breathes, so
+   it reads at a glance without covering the map under it. */
+@keyframes sv-locate-pulse {
+  0% { transform: scale(1); opacity: .55; }
+  70% { transform: scale(2.6); opacity: 0; }
+  100% { transform: scale(2.6); opacity: 0; }
+}
+.sv-locate {
+  position: relative;
+  width: 18px;
+  height: 18px;
+}
+.sv-locate-dot {
+  position: absolute;
+  inset: 2px;
+  border-radius: 999px;
+  background: var(--accent);
+  border: 2.5px solid #fff;
+  box-shadow: 0 2px 6px rgba(32, 30, 29, .35);
+}
+.sv-locate-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  animation: sv-locate-pulse 2.4s cubic-bezier(.22, .7, .3, 1) infinite;
+}
+
+@keyframes solvik-sheet-in {
+  from { transform: translateY(14px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+  /* A halo frozen mid-pulse is just a smudge — drop it entirely. */
+  .sv-locate-halo { display: none; }
+}

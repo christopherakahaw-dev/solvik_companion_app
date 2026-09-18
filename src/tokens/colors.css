@@ -1,0 +1,21 @@
+:root{
+/* --- Base palette: warm green --- */
+--green-900:#223f2e;--green-800:#2e5740;--green-700:#376248;--green-600:#437858;--green-500:#5a8f6f;--green-400:#8bb59b;--green-300:#bfd7c7;--green-200:#d9e7de;--green-100:#eff5f0;--green-50:#f6faf7;
+/* --- Base palette: warm neutrals (paper) --- */
+--sand-900:#201e1d;--sand-800:#2d2b29;--sand-700:#4a4845;--sand-600:#71736f;--sand-500:#9a9994;--sand-400:#c8c6c1;--sand-300:#e2e0db;--sand-200:#eceae6;--sand-100:#f4f3f1;--sand-50:#faf8f3;--white:#ffffff;
+/* --- Base palette: signal --- */
+--amber-600:#d5983b;--amber-100:#f7ecd8;--rust-700:#a76121;--rust-100:#f2e2d4;--sky-500:#7aa7df;--sky-100:#e3ecf8;--berry-600:#b03a4a;--berry-100:#f6e3e5;
+
+/* --- Semantic: text --- */
+--text-strong:var(--sand-900);--text-body:var(--sand-800);--text-muted:var(--sand-600);--text-subtle:var(--sand-500);--text-accent:var(--green-700);--text-on-accent:var(--white);--text-on-dark:var(--sand-50);--text-link:var(--green-700);--text-link-hover:var(--green-800);
+/* --- Semantic: surface --- */
+--surface-page:var(--sand-100);--surface-card:var(--white);--surface-raised:var(--white);--surface-sunken:var(--sand-200);--surface-accent:var(--green-100);--surface-accent-strong:var(--green-600);--surface-dark:var(--sand-900);--surface-map:var(--sand-50);--surface-overlay:rgba(32,30,29,.44);
+/* --- Semantic: border --- */
+--border-hairline:var(--sand-300);--border-card:var(--sand-200);--border-strong:var(--sand-400);--border-accent:var(--green-300);--border-focus:var(--green-600);
+/* --- Semantic: interactive --- */
+--accent:var(--green-600);--accent-hover:var(--green-700);--accent-press:var(--green-800);--accent-soft:var(--green-100);--accent-soft-hover:var(--green-200);--accent-ring:rgba(67,120,88,.28);
+/* --- Semantic: crowding + status --- */
+--crowd-light:var(--green-300);--crowd-moderate:var(--amber-600);--crowd-busy:var(--rust-700);--status-ok:var(--green-600);--status-warn:var(--amber-600);--status-alert:var(--rust-700);--status-fault:var(--berry-600);--status-info:var(--sky-500);
+/* --- Semantic: map --- */
+--map-land:var(--sand-50);--map-water:var(--sky-500);--map-route:var(--green-600);--map-pin:var(--sand-900);--map-restricted:#e9b5b0;
+}
