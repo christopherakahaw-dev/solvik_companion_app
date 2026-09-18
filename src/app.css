@@ -372,6 +372,10 @@
   transform: rotate(-45deg);
   animation: sv-issue-arrive 420ms cubic-bezier(.16,1,.3,1) both;
 }
+
+/* Small, contextual map feedback — never a full-width banner over the route. */
+.sv-toast { position: absolute; right: 18px; bottom: 92px; z-index: 50; box-sizing: border-box; width: fit-content; max-width: min(390px, calc(100% - 36px)); display: flex; align-items: center; gap: 9px; padding: 10px 13px 10px 10px; border: 1px solid color-mix(in oklch, var(--accent) 22%, var(--border-card)); border-radius: 16px; color: var(--text-body); background: color-mix(in oklch, var(--surface-card) 96%, var(--accent-soft)); box-shadow: 0 12px 30px rgba(32,30,29,.16); font: var(--weight-semibold) 13px/1.3 var(--font-body); text-wrap: pretty; animation: solvik-sheet-in var(--dur-base) var(--ease-out) both; }
+.sv-toast-icon { flex: none; width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 10px; color: var(--text-on-accent); background: var(--accent); box-shadow: 0 4px 10px color-mix(in oklch, var(--accent) 28%, transparent); }
 .sv-map-issue span { transform: rotate(45deg); font: var(--weight-heavy) 17px/1 var(--font-body); }
 .sv-map-issue-lift { background: var(--crowd-moderate); }
 .sv-issue-popup { width: min(292px, calc(100vw - 36px)) !important; }
