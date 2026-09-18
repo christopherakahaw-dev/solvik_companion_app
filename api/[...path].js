@@ -1,4 +1,4 @@
-// One serverless function, sixteen endpoints.
+// One serverless function, seventeen endpoints.
 //
 // Vercel's Hobby plan allows twelve serverless functions per deployment, and
 // `api/` had one file per endpoint — so the build failed. A
@@ -20,6 +20,7 @@ const ROUTES = {
   diagnostics: () => import("./_handlers/diagnostics.js"),
   forecast: () => import("./_handlers/forecast.js"),
   lta: () => import("./_handlers/lta.js"),
+  "nearby-stops": () => import("./_handlers/nearby-stops.js"),
   "nearest-stop": () => import("./_handlers/nearest-stop.js"),
   "onemap-route": () => import("./_handlers/onemap-route.js"),
   "onemap-search": () => import("./_handlers/onemap-search.js"),

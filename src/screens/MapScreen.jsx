@@ -30,17 +30,20 @@ export function MapScreen({ v }) {
   }, [menuOpen, routePanelOpen, weatherOpen, v.destName]);
 
   useEffect(() => {
-    if (!v.showRecents && !v.showResults && !v.showAreaSearch) return undefined;
+    if (!v.showSearchHome && !v.showNearbyBusStops && !v.showResults && !v.showAreaSearch) return undefined;
     const closeSearchOnOutsidePress = (event) => {
       if (!(event.target instanceof Element)) return;
       if (event.target.closest(".sv-map-search-wrap, .sv-map-results")) return;
+      // Let the Leaflet click handler consume a map tap. It dismisses search
+      // without also turning that same tap into a dropped pin.
+      if (event.target.closest(".leaflet-container")) return;
       const active = document.activeElement;
       if (active instanceof HTMLElement && active.closest(".sv-map-search-wrap")) active.blur();
       v.hideSearch();
     };
     document.addEventListener("pointerdown", closeSearchOnOutsidePress, true);
     return () => document.removeEventListener("pointerdown", closeSearchOnOutsidePress, true);
-  }, [v.showRecents, v.showResults, v.showAreaSearch, v.hideSearch]);
+  }, [v.showSearchHome, v.showNearbyBusStops, v.showResults, v.showAreaSearch, v.hideSearch]);
 
   useEffect(() => {
     if (v.searchTarget !== "area" || !v.mapSearch) return undefined;
@@ -49,7 +52,7 @@ export function MapScreen({ v }) {
   }, [v.searchTarget, v.mapSearch]);
 
   return (
-    <div className={`sv-map-screen${v.mapRoute ? " has-route" : ""}`} style={{ position: "absolute", inset: 0 }}>
+    <div className={`sv-map-screen${v.mapRoute ? " has-route" : ""}${v.searchOpen ? " is-search-focused" : ""}`} style={{ position: "absolute", inset: 0 }}>
       <OneMapCanvas
         center={v.mapCenter}
         zoom={12}
@@ -62,6 +65,7 @@ export function MapScreen({ v }) {
         dest={v.destCoord}
         pin={v.pinCoord}
         savedPlaces={v.savedPlaceMarkers}
+        busStops={v.nearbyBusStopMarkers}
         zones={v.routeCrowdStations}
         issues={v.mapIssues}
         onMapClick={v.dropPin}
@@ -140,29 +144,70 @@ export function MapScreen({ v }) {
           </div>
         </div>
 
-        {v.showRecents && (
-          <div className="sv-map-results" aria-label="Recent searches">
+        {v.showSearchHome && (
+          <div className="sv-map-results" aria-label="Search shortcuts and recent places">
             <Card className="sv-recent-card" tone="plain" style={{ padding: "var(--recent-card-padding, 14px 16px)" }}>
-              <div className="sv-recent-head">
-                <div className="sv-recent-title">Recent</div>
-                <Button className="sv-recent-clear" variant="ghost" size="sm" onClick={v.clearRecents}>Clear</Button>
+              <button type="button" className="sv-nearby-bus-action" onMouseDown={(event) => event.preventDefault()} onClick={v.findNearbyBusStops}>
+                <span><Icon name="bus-front" size={18} /></span>
+                <span><strong>Bus stops near me</strong><small>Find the closest LTA stops using your location</small></span>
+                <Icon name="chevron-right" size={17} />
+              </button>
+              {v.showRecents && (
+                <>
+                  <div className="sv-recent-head sv-nearby-recents-head">
+                    <div className="sv-recent-title">Recent</div>
+                    <Button className="sv-recent-clear" variant="ghost" size="sm" onClick={v.clearRecents}>Clear</Button>
+                  </div>
+                  {v.recents.map((p, i) => (
+                    <button
+                      key={i}
+                      className="sv-recent-row"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={p.pick}
+                    >
+                      <span className="sv-recent-icon">
+                        <Icon name="history" size={14} />
+                      </span>
+                      <span className="sv-recent-copy">
+                        <span className="sv-recent-name">{p.name}</span>
+                        <span className="sv-recent-detail">{p.detail}</span>
+                      </span>
+                    </button>
+                  ))}
+                </>
+              )}
+            </Card>
+          </div>
+        )}
+
+        {v.showNearbyBusStops && (
+          <div className="sv-map-results" role="region" aria-label="Bus stops near me">
+            <Card className="sv-nearby-bus-card" tone="plain">
+              <div className="sv-nearby-bus-head">
+                <span><Icon name="bus-front" size={17} /></span>
+                <div><strong>Bus stops near me</strong><small>Closest stops within 1.5 km</small></div>
+                <IconButton icon="x" label="Close nearby bus stops" tone="ghost" size="sm" onClick={v.closeNearbyBusStops} />
               </div>
-              {v.recents.map((p, i) => (
-                <button
-                  key={i}
-                  className="sv-recent-row"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={p.pick}
-                >
-                  <span className="sv-recent-icon">
-                    <Icon name="history" size={14} />
-                  </span>
-                  <span className="sv-recent-copy">
-                    <span className="sv-recent-name">{p.name}</span>
-                    <span className="sv-recent-detail">{p.detail}</span>
-                  </span>
+              {v.nearbyBusStopsPending && (
+                <div className="sv-nearby-bus-status"><Icon name="loader-2" size={16} style={{ animation: "sv-spin 900ms linear infinite" }} /> Finding your closest stops…</div>
+              )}
+              {!v.nearbyBusStopsPending && v.nearbyBusStopsError && (
+                <div className="sv-nearby-bus-error">
+                  <p>{v.nearbyBusStopsError}</p>
+                  <Button variant="secondary" size="sm" iconLeft="refresh-cw" onClick={v.findNearbyBusStops}>Try again</Button>
+                </div>
+              )}
+              {v.nearbyBusStopsEmpty && <div className="sv-nearby-bus-status">No LTA bus stops were found within 1.5 km.</div>}
+              {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && v.nearbyBusStops.map((stop) => (
+                <button type="button" className="sv-nearby-bus-row" key={stop.code} onClick={stop.pick}>
+                  <span className="sv-nearby-bus-code">{stop.code}</span>
+                  <span><strong>{stop.name}</strong><small>{stop.detail}</small></span>
+                  <Icon name="arrow-right" size={16} />
                 </button>
               ))}
+              {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && v.nearbyBusStops.length > 0 && (
+                <div className="sv-nearby-bus-source">Live stop directory from LTA DataMall</div>
+              )}
             </Card>
           </div>
         )}
@@ -551,7 +596,25 @@ export function MapScreen({ v }) {
                 </Button>
               </div>
             </div>
+            <div className="sv-alert-tabs" role="tablist" aria-label="Alert views">
+              {v.fcAlertTabs.map((tab) => (
+                <button key={tab.id} type="button" role="tab" aria-selected={tab.active} onClick={tab.pick}>
+                  <span>{tab.label}</span>
+                  <small>{tab.count}</small>
+                </button>
+              ))}
+            </div>
             <div style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10, paddingBottom: 4 }}>
+              {v.fcPersonalContext && (
+                <aside className="sv-alert-personal-context">
+                  <span aria-hidden="true"><Icon name="sparkles" size={16} /></span>
+                  <div>
+                    <strong>{v.fcPersonalContext.title}</strong>
+                    <p>{v.fcPersonalContext.detail}</p>
+                    <small>{v.fcPersonalContext.meta}</small>
+                  </div>
+                </aside>
+              )}
               {v.faultsPending && (
                 <div style={{ padding: "14px 0", font: "var(--type-body)", color: "var(--text-muted)" }}>Checking LTA for disruptions…</div>
               )}
@@ -559,10 +622,13 @@ export function MapScreen({ v }) {
                 <div style={{ padding: "14px 0", font: "var(--type-body)", color: "var(--status-fault)", textWrap: "pretty" }}>{v.faultsError}</div>
               )}
               {!v.faultsPending && !v.faultsError && v.faultsClear && (
-                <div style={{ padding: "14px 0", font: "var(--type-body)", color: "var(--text-muted)" }}>Normal service on all lines.</div>
+                <div className="sv-alert-empty">
+                  <span aria-hidden="true"><Icon name="circle-check" size={18} /></span>
+                  <div><strong>{v.faultsClearTitle}</strong><p>{v.faultsClearDetail}</p></div>
+                </div>
               )}
               {v.fcFaults.map((f, i) => (
-                <button key={i} onClick={f.toggleRead} style={styleText(f.cardStyle)}>
+                <button className="sv-alert-card" key={i} onClick={f.toggleRead} style={styleText(f.cardStyle)}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                     <span style={styleText(f.badgeStyle)}>{f.line}</span>
                     <span style={styleText(f.tagStyle)}>{f.tag}</span>

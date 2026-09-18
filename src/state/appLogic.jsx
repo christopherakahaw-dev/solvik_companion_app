@@ -4,6 +4,7 @@ import { getTrainServiceAlerts } from "../api/lta";
 import { getTripOptions } from "../api/trips";
 import { getCrowding } from "../api/crowding";
 import { getNearestStop } from "../api/stop";
+import { getNearbyBusStops } from "../api/nearbyStops";
 import { getArrivals } from "../api/arrivals";
 import { arrivalKeys, detailRows } from "../lib/tripDetail";
 import { commuteOutlook, outlookCodes } from "../lib/outlook";
@@ -28,7 +29,7 @@ import { acceptFix, alongMAtTime, coordAt, stepAtTime, timeAtAlongM, STALE_FIX_M
 import { metresBetween } from "../lib/geometry";
 import { resolveRouteOrigin } from "../lib/routeOrigin";
 import { routeFailure, routeRecoveryModes } from "../lib/routeFailure";
-import { addressDetail, durationLabel, forecastSlots, singaporeClock } from "../lib/display";
+import { addressDetail, durationLabel, forecastSlots, remapOptionLabels, singaporeClock } from "../lib/display";
 import {
   KEYS, loadStored, store, rememberSearch, recentSearches, clearSearches,
   loadReadAlerts, markAlertsRead, alertId, loadSavedPlaces, saveSavedPlaces,
@@ -109,7 +110,7 @@ export class AppLogic extends Component {
     routingPreferences: this.initialPreferences,
     addEdit: null, placesOpen: false,
     addOpen: false, addFrom: "home", addTo: "work", addDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
-    addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcWatch: [], crowdOn: false,
+    addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcAlertTab: "personal", fcWatch: [], crowdOn: false,
     hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
     screen: loadStored(ONBOARDED_KEY, false) ? "map" : "intro",
@@ -148,6 +149,7 @@ export class AppLogic extends Component {
     crowd: { stations: [], slots: [], at: null, pending: false, error: null },
     faults: { items: [], pending: false, error: null },
     stop: { data: null, pending: false, error: null, requested: false },
+    nearbyStops: { items: [], pending: false, error: null, requested: false },
   };
 
   effectiveRouteOrigin() {
@@ -190,6 +192,37 @@ export class AppLogic extends Component {
       return;
     }
     this.requestCurrentLocation(true, true).catch(() => {});
+  };
+
+  findNearbyBusStops = () => {
+    const request = {};
+    this._nearbyStopsRequest = request;
+    this.setState({
+      searchOpen: true,
+      searchTarget: "dest",
+      query: "",
+      liveResults: null,
+      searchPending: false,
+      nearbyStops: { items: [], pending: true, error: null, requested: true },
+    });
+
+    this.requestCurrentLocation(false, false)
+      .then((coords) => {
+        if (this._nearbyStopsRequest !== request) return null;
+        this._mapCenter = coords;
+        this._mapCenterReal = true;
+        this.setState((st) => ({ recenterToken: st.recenterToken + 1 }));
+        return getNearbyBusStops(coords[0], coords[1], { limit: 8, radiusM: 1500 });
+      })
+      .then((items) => {
+        if (!items || this._nearbyStopsRequest !== request) return;
+        this.setState({ nearbyStops: { items, pending: false, error: null, requested: true } });
+      })
+      .catch((err) => {
+        if (this._nearbyStopsRequest !== request) return;
+        const error = err?.code ? messageForError(err.code) : "Couldn't load nearby bus stops — try again";
+        this.setState({ nearbyStops: { items: [], pending: false, error, requested: true } });
+      });
   };
 
   // Everything that arrives from the geolocation API lands here, so a fix
@@ -1508,7 +1541,11 @@ export class AppLogic extends Component {
     const sevTone = { fault: "var(--status-fault)", warn: "var(--status-warn)", info: "var(--sand-500)" };
     const readAlerts = s.readAlerts || {};
     const isRead = (f) => !!(f && f.id && readAlerts[f.id]);
-    const unread = faults.items.filter((f) => !isRead(f));
+    const personalFaults = faults.items.filter((f) => this.alertTouchesMe(f));
+    const alertTab = s.fcAlertTab === "all" ? "all" : "personal";
+    const visibleFaults = alertTab === "all" ? faults.items : personalFaults;
+    const unread = visibleFaults.filter((f) => !isRead(f));
+    const personalUnread = personalFaults.filter((f) => !isRead(f));
 
     const slots = forecastSlots(crowd.slots);
     const slotIndex = s.fcAt ? slots.indexOf(s.fcAt) : 0;
@@ -1570,7 +1607,23 @@ export class AppLogic extends Component {
           barStyle: "display:block;width:30px;height:4px;border-radius:999px;background:" + (on ? "#fff" : "var(--sand-400)") + ";opacity:" + (on ? 0.9 : 0.8),
         };
       }),
-      fcFaults: faults.items.map((f) => ({
+      fcAlertTabs: [
+        { id: "personal", label: "For you", count: personalFaults.length, active: alertTab === "personal" },
+        { id: "all", label: "All LTA alerts", count: faults.items.length, active: alertTab === "all" },
+      ].map((tab) => ({ ...tab, pick: () => this.setState({ fcAlertTab: tab.id }) })),
+      fcPersonalContext: alertTab === "personal" ? {
+        title: s.aiMemory?.summary ? "Your commute memory" : "Matched to your commutes",
+        detail: s.aiMemory?.summary
+          || (this.myLines().length
+            ? "Live LTA alerts are matched against the lines in your watched commutes and recent journeys."
+            : "Start a route or add a watched commute to receive alerts for the lines you actually use."),
+        meta: [
+          `${(s.savedList || []).length} watched commute${(s.savedList || []).length === 1 ? "" : "s"}`,
+          this.myLines().length ? `${this.myLines().length} remembered line${this.myLines().length === 1 ? "" : "s"}` : null,
+          s.aiMemory?.summary ? `Gemini memory · ${s.aiMemory.confidence || "low"} confidence` : "Local journey memory",
+        ].filter(Boolean).join(" · "),
+      } : null,
+      fcFaults: visibleFaults.map((f) => ({
         ...f,
         // Only an alert on a line you ride offers a reroute, and only on a tap:
         // the Today card covers the trip you are about to make, and a sheet of
@@ -1597,17 +1650,23 @@ export class AppLogic extends Component {
       })),
       faultsPending: !!faults.pending,
       faultsError: faults.error || null,
-      faultsClear: !faults.pending && !faults.error && faults.items.length === 0,
+      faultsClear: !faults.pending && !faults.error && visibleFaults.length === 0,
+      faultsClearTitle: alertTab === "personal" ? "Nothing affecting your commutes" : "Normal service on all lines",
+      faultsClearDetail: alertTab === "personal"
+        ? (faults.items.length ? "There are LTA alerts, but none match the lines Solvik has learned or you currently watch." : "LTA has not published any current train-service disruption.")
+        : "LTA has not published any current train-service disruption.",
       fcFaultCount: unread.length ? unread.length + " unread" : "All read",
-      fcFaultN: unread.length,
-      fcHasFaults: unread.length > 0,
+      fcFaultN: personalUnread.length,
+      fcHasFaults: personalUnread.length > 0,
       fcHasUnread: unread.length > 0,
       fcMarkAllRead: () => {
-        this.setState((st) => ({ readAlerts: markAlertsRead(faults.items.map((f) => f.id), st.readAlerts) }));
+        this.setState((st) => ({ readAlerts: markAlertsRead(visibleFaults.map((f) => f.id), st.readAlerts) }));
         this.flash("All alerts marked read");
       },
       fcAlertsOpen: !!s.fcAlerts,
-      fcToggleAlerts: () => this.setState({ fcAlerts: !s.fcAlerts }),
+      fcToggleAlerts: () => this.setState((current) => current.fcAlerts
+        ? { fcAlerts: false }
+        : { fcAlerts: true, fcAlertTab: "personal" }),
       fcBellStyle: "position:relative;flex:none;margin-left:auto;width:46px;height:46px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;color:" +
         (s.fcAlerts ? "#fff" : "var(--text-strong)") + ";background:" + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)") + ";box-shadow:0 4px 14px rgba(32,30,29,.18)",
       fcBellDotStyle: "position:absolute;top:5px;right:5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:var(--weight-heavy) 10.5px/1 var(--font-numeric);color:#fff;background:var(--status-fault);border:2px solid " + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)"),
@@ -2457,6 +2516,17 @@ export class AppLogic extends Component {
         ? this.setState({ routeOrigin: { ...p, id: p.id || "custom" }, searchTarget: "dest", query: "", searchOpen: false, liveResults: null, searchPending: false, trips: { key: null, options: [], pending: false, error: null } })
         : this.chooseDest(p, s.searchTarget === "area" ? { pin: null } : undefined),
     }));
+    const nearbyBusState = s.nearbyStops || { items: [], pending: false, error: null, requested: false };
+    const nearbyBusStops = (nearbyBusState.items || []).map((stop) => ({
+      ...stop,
+      detail: `${stop.road || "Bus stop"} · ${nearbyDistance(stop.distanceM)}`,
+      pick: () => this.chooseDest({
+        name: stop.name || `Bus stop ${stop.code}`,
+        detail: `${stop.road || "Bus stop"} · Stop ${stop.code}`,
+        ll: [stop.lat, stop.lng],
+        kind: "Bus stop",
+      }),
+    }));
 
     const dest = s.dest;
     const trips = s.trips || { options: [], pending: false, error: null };
@@ -2477,6 +2547,7 @@ export class AppLogic extends Component {
     const rankedTrips = aiSelected
       ? [aiSelected, ...weatherRankedTrips.filter((entry) => entry !== aiSelected)]
       : weatherRankedTrips;
+    const displayedOriginalIndexes = rankedTrips.map((entry) => entry.originalIndex);
     const recommendedTrip = rankedTrips[0]?.option || null;
     const weatherChangedRecommendation = Boolean(
       rankedTrips[0]?.weather?.wet && rankedTrips[0]?.originalIndex !== 0
@@ -2512,7 +2583,7 @@ export class AppLogic extends Component {
         // When Gemini answers, show its returned explanation verbatim. Local
         // rules below are a fallback only; mixing the two made model output
         // indistinguishable from hardcoded copy.
-        if (aiReason) return aiReason;
+        if (aiReason) return remapOptionLabels(aiReason, displayedOriginalIndexes);
         const base = i === 0 && weatherChangedRecommendation
           ? weather.cycling
             ? `Best fit · ${weather.text} is expected, so Solvik moved cycling behind a weather-safe option.`
@@ -2764,8 +2835,9 @@ export class AppLogic extends Component {
       ...this.introVals(s, sc),
       isReport: sc === "report", isRewards: sc === "rewards", isPlan: sc === "plan", isAccount: sc === "account",
       showStatus: ["report", "rewards", "plan", "account"].indexOf(sc) >= 0,
-      showTabs: ["map", "plan", "report", "rewards", "account"].indexOf(sc) >= 0 && !(sc === "map" && !!s.dest),
+      showTabs: ["map", "plan", "report", "rewards", "account"].indexOf(sc) >= 0 && !(sc === "map" && (!!s.dest || !!s.searchOpen)),
       isMap: sc === "map", mapSearch: !s.dest, mapRoute: !!s.dest,
+      searchOpen: !!s.searchOpen,
       mapWeather,
       // The panel stays shut until there is a real query to answer — focusing
       // the field no longer surfaces the built-in place list.
@@ -2773,12 +2845,28 @@ export class AppLogic extends Component {
       // Your own history, shown only when you open an empty search box — it
       // disappears the moment you start typing.
       showRecents: s.searchTarget === "dest" && !s.dest && !!s.searchOpen && q.length < 2 && (s.recents || []).length > 0,
+      showSearchHome: s.searchTarget === "dest" && !s.dest && !!s.searchOpen && q.length < 2 && !nearbyBusState.requested,
+      showNearbyBusStops: s.searchTarget === "dest" && !s.dest && !!s.searchOpen && q.length < 2 && !!nearbyBusState.requested,
+      nearbyBusStops,
+      nearbyBusStopsPending: !!nearbyBusState.pending,
+      nearbyBusStopsError: nearbyBusState.error || null,
+      nearbyBusStopsEmpty: !nearbyBusState.pending && !nearbyBusState.error && nearbyBusState.requested && nearbyBusStops.length === 0,
+      nearbyBusStopMarkers: nearbyBusState.requested && s.searchOpen && !dest ? nearbyBusStops.map((stop) => ({
+        code: stop.code,
+        name: stop.name,
+        road: stop.road,
+        ll: [stop.lat, stop.lng],
+        distanceM: stop.distanceM,
+      })) : [],
+      findNearbyBusStops: this.findNearbyBusStops,
+      closeNearbyBusStops: () => {
+        this._nearbyStopsRequest = null;
+        this.setState({ nearbyStops: { items: [], pending: false, error: null, requested: false } });
+      },
       showAreaSearch: s.searchTarget === "area" && !s.dest && !!s.searchOpen && q.length < 2 && !!s.pin,
       areaSearchCategories: [
-        { label: "Food & drink", query: "food centre", icon: "utensils" },
         { label: "MRT & LRT", query: "MRT station", icon: "train-front" },
         { label: "Bus hubs", query: "bus interchange", icon: "bus" },
-        { label: "Clinics", query: "clinic", icon: "cross" },
       ].map((category) => ({ ...category, pick: () => this.setState({ query: category.query }) })),
       areaSearchDetail: s.pin?.detail || "Dropped pin",
       recents: (s.recents || []).map((r) => ({
@@ -2789,7 +2877,12 @@ export class AppLogic extends Component {
       clearRecents: () => this.setState({ recents: clearSearches() }),
       openSearch: () => {
         clearTimeout(this.bt);
-        this.setState((current) => ({ searchOpen: true, searchTarget: current.searchTarget === "area" ? "area" : "dest" }));
+        this._nearbyStopsRequest = null;
+        this.setState((current) => ({
+          searchOpen: true,
+          searchTarget: current.searchTarget === "area" ? "area" : "dest",
+          nearbyStops: { items: [], pending: false, error: null, requested: false },
+        }));
       },
       hideSearch: () => { clearTimeout(this.bt); this.setState({ searchOpen: false }); },
       openOriginSearch: () => this.setState({
@@ -2800,7 +2893,10 @@ export class AppLogic extends Component {
         searchPending: false,
       }),
       closeSearch: () => { if (this.bt) clearTimeout(this.bt); this.bt = setTimeout(() => this.setState({ searchOpen: false }), 160); },
-      dismissSearch: () => this.setState({ query: "", searchOpen: false, searchTarget: "dest", liveResults: null, searchPending: false }),
+      dismissSearch: () => {
+        this._nearbyStopsRequest = null;
+        this.setState({ query: "", searchOpen: false, searchTarget: "dest", liveResults: null, searchPending: false, nearbyStops: { items: [], pending: false, error: null, requested: false } });
+      },
       query: s.query,
       searchTarget: s.searchTarget,
       setQuery: (val) => this.setState({ query: val }),
@@ -2948,6 +3044,13 @@ export class AppLogic extends Component {
       pinDetail: s.pin ? s.pin.detail : "",
       dropPin: (ll) => {
         if (this.state.dest) return;
+        if (this.state.searchOpen) {
+          if (this.bt) clearTimeout(this.bt);
+          const active = typeof document !== "undefined" ? document.activeElement : null;
+          if (active instanceof HTMLElement) active.blur();
+          this.setState({ searchOpen: false });
+          return;
+        }
         this.setState({
           pin: { ll, name: "Dropped pin", detail: ll[0].toFixed(5) + ", " + ll[1].toFixed(5) },
           searchOpen: false,

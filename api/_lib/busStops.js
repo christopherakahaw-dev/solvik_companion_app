@@ -48,6 +48,23 @@ export async function nearestStop(lat, lng) {
   return { code: best.BusStopCode, name: best.Description, road: best.RoadName, lat: best.Latitude, lng: best.Longitude, distanceM: bestD };
 }
 
+export async function nearbyStops(lat, lng, { limit = 8, radiusM = 1500 } = {}) {
+  const stops = await loadStops();
+  return stops
+    .map((stop) => ({ stop, distanceM: distanceMetres(lat, lng, Number(stop.Latitude), Number(stop.Longitude)) }))
+    .filter(({ distanceM }) => Number.isFinite(distanceM) && distanceM <= radiusM)
+    .sort((a, b) => a.distanceM - b.distanceM)
+    .slice(0, limit)
+    .map(({ stop, distanceM }) => ({
+      code: stop.BusStopCode,
+      name: stop.Description,
+      road: stop.RoadName,
+      lat: Number(stop.Latitude),
+      lng: Number(stop.Longitude),
+      distanceM,
+    }));
+}
+
 export async function nearestStopCode(lat, lng) {
   const stop = await nearestStop(lat, lng);
   return stop ? stop.code : null;

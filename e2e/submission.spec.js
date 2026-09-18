@@ -34,14 +34,18 @@ async function setup(page, places = { home, school }, options = {}) {
     let response = {};
     if (path.endsWith("onemap-search")) {
       options.onSearch?.(body);
-      response = /clinic/i.test(body.query) && Array.isArray(body.near)
+      response = /mrt station/i.test(body.query) && Array.isArray(body.near)
         ? { results: [
-            { name: "FAR CLINIC", address: "Across Singapore", postal: "999999", lat: body.near[0] + 0.1, lng: body.near[1] + 0.1 },
-            { name: "PIN-SIDE CLINIC", address: "Beside the dropped pin", postal: "111111", lat: body.near[0] + 0.0001, lng: body.near[1] + 0.0001 },
+            { name: "FAR MRT STATION", address: "Across Singapore", postal: "999999", lat: body.near[0] + 0.1, lng: body.near[1] + 0.1 },
+            { name: "PIN-SIDE MRT STATION", address: "Beside the dropped pin", postal: "111111", lat: body.near[0] + 0.0001, lng: body.near[1] + 0.0001 },
           ] }
         : { results: /bugis/i.test(body.query) ? [bugis] : /nanyang|^nt/i.test(body.query) ? [{ ...school, lat: school.ll[0], lng: school.ll[1] }] : Array.from({ length: 8 }, (_, i) => ({ ...destination, name: i ? `CLEMENTI PLACE ${i}` : destination.name })) };
     }
     else if (path.endsWith("trip-options")) response = { options: options.tripOptions || [option] };
+    else if (path.endsWith("nearby-stops")) response = { stops: options.nearbyStops || [
+      { code: "28031", name: "Opp Blk 413", road: "Commonwealth Ave West", lat: 1.3112, lng: 103.7701, distanceM: 24 },
+      { code: "28039", name: "Blk 413", road: "Commonwealth Ave West", lat: 1.3121, lng: 103.771, distanceM: 160 },
+    ] };
     else if (path.endsWith("ai")) response = options.aiDecision
       ? { configured: true, model: "gemini-3.5-flash-lite", decision: options.aiDecision }
       : { configured: false };
@@ -113,6 +117,50 @@ test("recent searches stay compact and close when search focus ends", async ({ p
   }
 });
 
+test("bus stops near me uses the device location and opens routing", async ({ page }) => {
+  await setup(page);
+  const requests = [];
+  page.on("request", (request) => {
+    if (request.url().includes("/api/nearby-stops")) requests.push(request.postDataJSON());
+  });
+
+  await page.getByRole("textbox", { name: "Search address, stop or area", exact: true }).focus();
+  await page.getByRole("button", { name: /Bus stops near me/ }).click();
+
+  await expect(page.getByRole("region", { name: "Bus stops near me" })).toBeVisible();
+  await expect(page.locator(".sv-nearby-bus-row", { hasText: "Opp Blk 413" })).toBeVisible();
+  await expect(page.getByText("Commonwealth Ave West · 20 m away", { exact: true })).toBeVisible();
+  expect(requests).toHaveLength(1);
+  expect(requests[0]).toMatchObject({ lat: 1.34, lng: 103.7 });
+  await expect(page.locator(".sv-nearby-bus-marker")).toHaveCount(2);
+
+  await page.locator(".sv-nearby-bus-row", { hasText: "Opp Blk 413" }).click();
+  await expect(page.getByRole("button", { name: "Change destination" }).getByText("Opp Blk 413", { exact: true })).toBeVisible();
+  await expect(page.locator(".sv-nearby-bus-marker")).toHaveCount(0);
+});
+
+test("search focus hides navigation and the first map tap only dismisses search", async ({ page }) => {
+  await page.setViewportSize({ width: 393, height: 700 });
+  await setup(page);
+  const search = page.getByRole("textbox", { name: "Search address, stop or area", exact: true });
+  const navigation = page.getByRole("navigation", { name: "Main navigation" });
+
+  await expect(navigation).toBeVisible();
+  await search.focus();
+  await search.fill("clem");
+  await expect(page.locator(".sv-map-results")).toBeVisible();
+  await expect(navigation).toBeHidden();
+
+  await page.mouse.click(5, 350);
+  await expect(page.locator(".sv-map-results")).toBeHidden();
+  await expect(search).not.toBeFocused();
+  await expect(navigation).toBeVisible();
+  await expect(page.getByRole("button", { name: "Routes here", exact: true })).toHaveCount(0);
+
+  await page.mouse.click(5, 350);
+  await expect(page.getByRole("button", { name: "Routes here", exact: true })).toBeVisible();
+});
+
 test("a dropped pin searches nearby places and ranks the results", async ({ page }) => {
   const searchRequests = [];
   await setup(page, { home, school }, { onSearch: (body) => searchRequests.push(body) });
@@ -124,11 +172,13 @@ test("a dropped pin searches nearby places and ranks the results", async ({ page
   await expect(nearbySearch).toBeFocused();
   await expect(page.getByText("Search this area", { exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "Nearby categories" })).toBeVisible();
-  await page.getByRole("button", { name: "Clinics", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Food & drink", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Clinics", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "MRT & LRT", exact: true }).click();
 
-  await expect(page.getByRole("button", { name: /^PIN-SIDE CLINIC/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^PIN-SIDE MRT STATION/ })).toBeVisible();
   const resultNames = await page.locator(".sv-map-results button").allTextContents();
-  expect(resultNames.findIndex((name) => name.includes("PIN-SIDE CLINIC"))).toBeLessThan(resultNames.findIndex((name) => name.includes("FAR CLINIC")));
+  expect(resultNames.findIndex((name) => name.includes("PIN-SIDE MRT STATION"))).toBeLessThan(resultNames.findIndex((name) => name.includes("FAR MRT STATION")));
   expect(searchRequests.at(-1).near).toHaveLength(2);
   expect(searchRequests.at(-1).near.every(Number.isFinite)).toBe(true);
   await expect(page.getByText(/(?:m|km) away/).first()).toBeVisible();
@@ -603,6 +653,11 @@ async function disruptedCommute(page, { rerouteBody } = {}) {
       from: "home", to: "school", days: ["Mon", "Tue", "Wed", "Thu", "Fri"], mins: 480, mode: "Comfort", legs: ["NSL"],
       fromPlace: { id: "home", label: "Home", place: "Home", ll: home }, toPlace: { id: "school", label: "School", place: "School", ll: school },
     }]));
+    localStorage.setItem("solvik:aiMemory", JSON.stringify({
+      summary: "You usually prefer predictable rail journeys with fewer changes.",
+      confidence: "medium",
+      model: "Gemini",
+    }));
     localStorage.setItem("qa:disrupt", "1");
   }, { home: [1.311, 103.77], school: [1.348, 103.683] });
 
@@ -641,6 +696,23 @@ test("a fault on your line brings an alternative that avoids it", async ({ page 
   // survived the filter, and the broken line is not among them.
   await expect(page.getByText("BUS 851 · CCL", { exact: true })).toHaveText("BUS 851 · CCL");
   await noOverflow(page);
+});
+
+test("alerts separate commute-relevant updates from the full LTA feed", async ({ page }) => {
+  await disruptedCommute(page);
+  await page.getByRole("button", { name: "Map", exact: true }).click();
+  await page.getByRole("button", { name: "Alerts", exact: true }).click();
+
+  const forYou = page.getByRole("tab", { name: /For you/ });
+  const allLta = page.getByRole("tab", { name: /All LTA alerts/ });
+  await expect(forYou).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByText("Your commute memory", { exact: true })).toBeVisible();
+  await expect(page.getByText(/predictable rail journeys/)).toBeVisible();
+  await expect(page.locator(".sv-alert-card")).toHaveCount(1);
+
+  await allLta.click();
+  await expect(allLta).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".sv-alert-card")).toHaveCount(2);
 });
 
 test("when every route still uses the broken line, the app says so", async ({ page }) => {

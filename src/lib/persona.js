@@ -14,7 +14,7 @@ export const PERSONAS = {
     id: "fixed",
     name: "Fixed schedule",
     blurb: "Same trip every day. Tell me only when it actually matters.",
-    example: "Like Rachel — Tampines to Raffles Place, must be at her desk by 08:45.",
+    example: "Reliable daily trips with a firm arrival time.",
     mode: "fast",
     // A five-minute delay is noise to her; fifteen costs a meeting.
     interruptAfterMins: 15,
@@ -41,7 +41,7 @@ export const PERSONAS = {
     id: "flexible",
     name: "Flexible and multi-modal",
     blurb: "I'll leave later to avoid a crush. Cycling and buses both count.",
-    example: "Like Arjun — Punggol to one-north, start time flexible within the hour.",
+    example: "Comfort-first travel with quieter times and more ways to go.",
     mode: "quiet",
     interruptAfterMins: 5,
     liftOutageBlocks: false,
@@ -67,7 +67,7 @@ export const PERSONAS = {
     id: "stepFree",
     name: "Step-free access",
     blurb: "I need lifts and shelter, and I plan the whole trip before I leave.",
-    example: "Like Mdm Lim — Bedok to Singapore General Hospital, fortnightly.",
+    example: "Accessible door-to-door trips with lifts and shorter walks.",
     mode: "step",
     // She will not improvise on a platform, so anything that breaks the route
     // matters however small the time cost.

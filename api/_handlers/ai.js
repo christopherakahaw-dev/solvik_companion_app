@@ -70,7 +70,12 @@ export function cleanRouteInput(body) {
 export function normalizeOptionNumbers(decision) {
   if (!decision) return decision;
   const reasons = [decision.reason, ...(decision.alternatives || []).map((item) => item.reason)];
-  const usedZeroBasedLabels = reasons.some((reason) => /\boption\s+0\b/i.test(String(reason || "")));
+  const selectedLabel = /\boption\s+([0-4])\b/i.exec(String(decision.reason || ""));
+  // Option 0 is unambiguous. If Gemini starts the winner explanation with its
+  // raw selectedIndex instead of optionNumber, that is also unambiguously the
+  // zero-based convention (except index 0, whose human label is Option 1).
+  const usedZeroBasedLabels = reasons.some((reason) => /\boption\s+0\b/i.test(String(reason || "")))
+    || (selectedLabel && Number(selectedLabel[1]) === decision.selectedIndex && decision.selectedIndex > 0);
   if (!usedZeroBasedLabels) return decision;
   const increment = (reason) => String(reason || "").replace(/\b(option\s+)([0-4])\b/gi, (_, label, value) => `${label}${Number(value) + 1}`);
   return {
