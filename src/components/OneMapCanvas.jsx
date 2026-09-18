@@ -44,6 +44,10 @@ function issueHtml(kind) {
   return `<div class="sv-map-issue sv-map-issue-${kind || "alert"}" aria-hidden="true"><span>${glyph}</span></div>`;
 }
 
+function busStopHtml() {
+  return '<div class="sv-nearby-bus-marker" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 17h12M6 17V6.8C6 5.3 7.2 4 8.8 4h6.4C16.8 4 18 5.3 18 6.8V17M6 9h12M8.5 13h.01M15.5 13h.01M8 17v2M16 17v2"/></svg></div>';
+}
+
 function escapeHtml(value) {
   return String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 }
@@ -86,6 +90,7 @@ export function OneMapCanvas({
   dest,
   pin,
   savedPlaces,
+  busStops,
   zones,
   issues,
   onMapClick,
@@ -110,6 +115,7 @@ export function OneMapCanvas({
   const safeSavedPlaces = Array.isArray(savedPlaces)
     ? savedPlaces.filter((place) => place && SAVED_PLACE_GLYPHS[place.id] && isLL(place.ll))
     : [];
+  const safeBusStops = Array.isArray(busStops) ? busStops.filter((stop) => stop && isLL(stop.ll)) : [];
 
   const ref = useRef(null);
   const mapRef = useRef(null);
@@ -334,6 +340,22 @@ export function OneMapCanvas({
       saved.bindTooltip(label, { direction: "top", offset: [0, -35] });
       layersRef.current.push(saved);
     });
+    safeBusStops.forEach((stop) => {
+      const label = `${stop.name || "Bus stop"}${stop.code ? ` · ${stop.code}` : ""}`;
+      const marker = L.marker(stop.ll, {
+        keyboard: true,
+        zIndexOffset: 620,
+        title: label,
+        icon: L.divIcon({
+          className: "",
+          html: busStopHtml(),
+          iconSize: [32, 38],
+          iconAnchor: [16, 34],
+        }),
+      }).addTo(map);
+      marker.bindTooltip(label, { direction: "top", offset: [0, -27], className: "sv-nearby-bus-tooltip" });
+      layersRef.current.push(marker);
+    });
     if (safeZones.length) {
       const cs = getComputedStyle(document.documentElement);
       const tone = (lv) => cs.getPropertyValue("--crowd-" + lv).trim() || "#777974";
@@ -416,7 +438,7 @@ export function OneMapCanvas({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(routeOption), JSON.stringify(safeRoute), JSON.stringify(safeCompare), JSON.stringify(affected), JSON.stringify(marker), markerAccuracy, JSON.stringify(origin), JSON.stringify(dest), JSON.stringify(pin), JSON.stringify(safeSavedPlaces), JSON.stringify(safeZones), JSON.stringify(safeIssues)]);
+  }, [JSON.stringify(routeOption), JSON.stringify(safeRoute), JSON.stringify(safeCompare), JSON.stringify(affected), JSON.stringify(marker), markerAccuracy, JSON.stringify(origin), JSON.stringify(dest), JSON.stringify(pin), JSON.stringify(safeSavedPlaces), JSON.stringify(safeBusStops), JSON.stringify(safeZones), JSON.stringify(safeIssues)]);
 
   const lastTokenRef = useRef(recenterToken);
   useEffect(() => {

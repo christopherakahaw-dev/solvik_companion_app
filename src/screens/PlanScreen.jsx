@@ -240,9 +240,13 @@ export function PlanScreen({ v }) {
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 4px 9px" }}>
           <SectionLabel>Watched daily</SectionLabel>
           <div style={{ marginLeft: "auto", flex: "none" }}>
-            <Button variant="ghost" size="sm" iconLeft="plus" onClick={v.openAdd}>
-              Add
-            </Button>
+            <IconButton
+              icon="pencil"
+              label="Add or edit a watched commute"
+              tone="ghost"
+              size="sm"
+              onClick={v.openAdd}
+            />
           </div>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
