@@ -778,3 +778,7 @@
 .sv-route-travel-nav { position: sticky; top: 0; z-index: 4; display: flex; flex-direction: column; gap: 8px; padding: 7px 0 9px; background: var(--surface-card); border-bottom: 1px solid var(--border-card); }
 .sv-route-scroll { scroll-padding-top: 90px; }
 .sv-route-scroll:focus-visible { outline: 2px solid var(--border-focus); outline-offset: -2px; }
+
+.sv-map-screen.has-route .sv-map-leading { display: flex; }
+.sv-map-back { border: 1px solid var(--border-card); }
+.sv-map-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }

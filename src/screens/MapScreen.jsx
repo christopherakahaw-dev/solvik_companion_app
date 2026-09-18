@@ -107,6 +107,12 @@ export function MapScreen({ v }) {
       <div className="sv-map-overlay-stack">
         <div className="sv-map-topbar">
           <div className="sv-map-leading">
+            {v.mapRoute ? (
+              <button type="button" className="sv-map-control sv-map-back" aria-label="Back to map search" title="Back to map search" onClick={() => { setWeatherOpen(false); setMenuOpen(false); setOpenRouteFor(null); setDismissedRouteFor(null); v.backToSearch(); }}>
+                <Icon name="arrow-left" size={21} strokeWidth={2.2} />
+              </button>
+            ) : <>
+
             <button
               type="button"
               className="sv-map-control sv-map-menu-button sv-logo-menu-button"
@@ -119,6 +125,7 @@ export function MapScreen({ v }) {
               <span className="sv-logo-menu-cue" aria-hidden="true"><Icon name="menu" size={13} strokeWidth={2.8} /></span>
             </button>
             <SolvikBrand compact className="sv-map-brand" />
+            </>}
           </div>
 
           {v.mapSearch ? (
@@ -132,7 +139,7 @@ export function MapScreen({ v }) {
             >
               <SearchField value={v.query} placeholder={v.searchPlaceholder} icon="search" onChange={v.setQuery} onClear={v.clearQuery} />
             </div>
-          ) : <div aria-hidden="true" />}
+           ) : null}
 
           <div className="sv-map-top-actions">
               <button className="sv-map-action sv-map-action-alert" onClick={() => { setWeatherOpen(false); v.fcToggleAlerts(); }} aria-label="Alerts" title="Alerts" style={styleText(v.fcBellStyle)}>
