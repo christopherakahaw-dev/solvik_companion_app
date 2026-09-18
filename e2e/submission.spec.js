@@ -244,7 +244,7 @@ test("tablet and laptop keep the map full-screen and reveal panels on demand", a
   await expect(routeSheet).toBeVisible();
   expect((await routeSheet.boundingBox()).width).toBeLessThanOrEqual(421);
   const panelCloseBox = await routeSheet.getByRole("button", { name: "Collapse route options" }).boundingBox();
-  const originFieldBox = await routeSheet.getByRole("combobox", { name: "Search starting place" }).boundingBox();
+  const originFieldBox = await routeSheet.getByRole("combobox", { name: /starting/i }).boundingBox();
   expect(panelCloseBox.y + panelCloseBox.height).toBeLessThanOrEqual(originFieldBox.y - 3);
   const topbarAfter = await page.locator(".sv-map-topbar").boundingBox();
   expect(Math.abs(topbarAfter.x - topbarBefore.x)).toBeLessThanOrEqual(1);
@@ -283,6 +283,26 @@ test("travel choices use one horizontal swipe rail", async ({ page }, info) => {
   expect(await modes.evaluate((el) => getComputedStyle(el).display)).toBe("flex");
   expect(await modes.evaluate((el) => ["auto", "scroll"].includes(getComputedStyle(el).overflowX))).toBe(true);
   await page.screenshot({ path: info.outputPath("travel-mode-swipe-rail.png") });
+});
+
+test("the route panel opens immediately when route retrieval finishes", async ({ page }) => {
+  await setup(page);
+  let releaseRoute;
+  const routeReady = new Promise((resolve) => { releaseRoute = resolve; });
+  await page.route("**/api/trip-options", async (route) => {
+    await routeReady;
+    await route.fulfill({ json: { options: [option] } });
+  });
+
+  await page.getByRole("textbox", { name: "Search address, stop or area", exact: true }).fill("clem");
+  await page.getByRole("button", { name: /^CLEMENTI ARCADE/ }).click();
+  await expect(page.locator(".sv-route-summary")).toContainText("Finding route…");
+  await expect(page.locator(".sv-route-sheet-wrap")).not.toHaveClass(/is-open/);
+
+  releaseRoute();
+  await expect(page.locator(".sv-route-sheet-wrap")).toHaveClass(/is-open/);
+  await expect(page.getByRole("region", { name: "Route options" })).toBeVisible();
+  await expect(page.locator(".sv-route-summary")).toHaveCount(0);
 });
 
 test("desktop content and active navigation use compact responsive layouts", async ({ page }, info) => {
@@ -378,11 +398,12 @@ test("deleting Home clears it as the active route origin", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 });
   await pickDestination(page);
 
-  const origin = page.locator(".sv-route-sheet-wrap").getByRole("combobox", { name: "Search starting place" });
+  const origin = page.locator(".sv-route-sheet-wrap").getByRole("combobox", { name: /starting/i });
   await origin.click();
   await page.getByRole("option").filter({ hasText: /^Home/ }).click();
   await expect(page.locator(".sv-route-origin-marker")).toHaveCount(1);
 
+  await page.getByRole("button", { name: "Back to map search" }).click();
   await page.getByRole("button", { name: "Open menu" }).click();
   await page.getByRole("dialog", { name: "Solvik menu" }).getByRole("button", { name: "Plan", exact: true }).click();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
@@ -400,7 +421,7 @@ test("deleting Home clears it as the active route origin", async ({ page }) => {
 test("manual commutes keep both endpoints after reload", async ({ page }) => {
   await setup(page, { home });
   await page.getByRole("button", { name: "Plan", exact: true }).click();
-  await page.getByRole("button", { name: "Add", exact: true }).click();
+  await page.getByRole("button", { name: "Add or edit a watched commute" }).click();
   const dialog = page.getByRole("dialog", { name: "Add a commute" });
   await expect(dialog.getByRole("button", { name: "Pick places and days" })).toBeDisabled();
   await dialog.getByRole("button", { name: "Search destination", exact: true }).click();
@@ -424,7 +445,7 @@ test("destination defaults to device location and origin choices stay inside sea
     if (request.url().includes("/api/trip-options")) requests.push(request.postDataJSON());
   });
   await pickDestination(page);
-  const origin = page.getByRole("combobox", { name: "Search starting place" });
+  const origin = page.getByRole("combobox", { name: /starting/i });
   await expect(origin).toHaveValue("My location");
   expect(await page.evaluate(() => window.qaLocationCalls)).toBe(1);
   await expect(page.getByRole("button", { name: "My location", exact: true })).toHaveCount(0);
@@ -473,7 +494,7 @@ test("Gemini can rank supplied routes without inventing a journey", async ({ pag
 
   await expect(page.getByText(/AI-assisted recommendation · gemini-3.5-flash-lite/i)).toBeVisible();
   const cards = page.locator(".sv-route-option-card");
-  await expect(cards.first()).toContainText("161");
+  await expect(cards.first()).toContainText("2 h 41 m");
   await expect(cards.first()).toContainText("Gemini explanation");
   await expect(cards.first()).toContainText("Light crowding and no changes");
   await expect(cards).toHaveCount(2);
@@ -492,7 +513,7 @@ test("search errors recover and routing failures can be retried", async ({ page 
   await page.route("**/api/onemap-search", route => route.fulfill({ status: 502, json: { error: "Search temporarily unavailable" } }));
   const search = page.getByRole("textbox", { name: "Search address, stop or area", exact: true });
   await search.fill("clem");
-  await expect(page.getByText("Can't reach OneMap — check your connection")).toBeVisible();
+  await expect(page.getByText("Search temporarily unavailable")).toBeVisible();
   await page.unroute("**/api/onemap-search");
   await page.route("**/api/trip-options", route => route.fulfill({ status: 502, json: { error: "Routing temporarily unavailable" } }));
   await search.fill("clementi");
@@ -516,13 +537,13 @@ test("denied location still allows a manual origin and unfinished text disables 
   await page.evaluate(() => { navigator.geolocation.getCurrentPosition = (_, fail) => fail({ code: 1 }); });
   await pickDestination(page);
   await expect(page.getByText(/Location permission denied/)).toBeVisible();
-  const origin = page.getByRole("combobox", { name: "Search starting place" });
+  const origin = page.getByRole("combobox", { name: /starting/i });
   await origin.fill("bugis");
   await page.getByRole("option").first().click();
   await expect(page.getByRole("button", { name: "Go", exact: true })).toBeVisible();
   await origin.fill("n");
   await expect(page.getByRole("button", { name: "Go", exact: true })).toHaveCount(0);
-  await expect(page.getByText("Select a starting place from the search results.")).toBeVisible();
+  await expect(page.getByText(/Select one of the search results for your starting place/)).toBeVisible();
 });
 
 test("crowding is fetched as a current route snapshot without a global scrubber", async ({ page }) => {
@@ -572,7 +593,7 @@ test("storage denial does not prevent completing onboarding or browsing tabs", a
   await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
   await page.getByRole("button", { name: "Review this setup" }).click();
   await page.getByRole("button", { name: "Show my route" }).click();
-  await page.getByRole("button", { name: "Change destination", exact: true }).click();
+  await page.getByRole("button", { name: "Back to map search" }).click();
   for (const name of ["Plan", "Report", "Points", "Map"]) {
     await page.getByRole("navigation").getByRole("button", { name, exact: true }).click();
     await noOverflow(page);

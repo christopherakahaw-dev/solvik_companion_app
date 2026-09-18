@@ -66,3 +66,22 @@ test("distance calculation is stable at Singapore latitudes", () => {
   const metres = distanceMetres([1.3, 103.8], [1.301, 103.8]);
   assert.ok(metres > 110 && metres < 112);
 });
+
+ test("search without credentials uses public results even with an auth advisory", async () => {
+  const email = process.env.ONEMAP_EMAIL;
+  const password = process.env.ONEMAP_PASSWORD;
+  delete process.env.ONEMAP_TOKEN;
+  delete process.env.ONEMAP_EMAIL;
+  delete process.env.ONEMAP_PASSWORD;
+  try {
+    globalThis.fetch = async (_url, init) => {
+      assert.equal(init.headers.Authorization, undefined);
+      return new Response(JSON.stringify({ error: "Authentication token missing", results: [rawPlace("CLEMENTI", 1.315, 103.765)] }), { status: 200 });
+    };
+    const results = await oneMapSearch("clementi");
+    assert.equal(results[0].name, "CLEMENTI");
+  } finally {
+    if (email != null) process.env.ONEMAP_EMAIL = email;
+    if (password != null) process.env.ONEMAP_PASSWORD = password;
+  }
+});

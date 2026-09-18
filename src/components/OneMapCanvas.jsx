@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import L from "leaflet";
+import { routeSegments } from "../lib/routeSegments.js";
 import "leaflet/dist/leaflet.css";
 import { baseLayerOrder, mapTilerKey } from "../lib/mapBase.js";
 
@@ -78,6 +79,7 @@ export function OneMapCanvas({
   center,
   zoom,
   route,
+  routeOption,
   // The route being compared against, drawn faint behind the live one, and the
   // spans of the live route that are disrupted.
   compareRoute,
@@ -215,13 +217,15 @@ export function OneMapCanvas({
     if (safeCompare.length > 1) {
       const was = L.polyline(safeCompare, {
         color: getComputedStyle(document.documentElement).getPropertyValue("--text-muted").trim() || "#7a736c",
-        weight: 4, opacity: 0.45, dashArray: "6 8", lineCap: "round",
+        weight: 4, opacity: 0.45, lineCap: "round",
       }).addTo(map);
       layersRef.current.push(was);
     }
     if (safeRoute.length > 1) {
-      const line = L.polyline(safeRoute, { color: green, weight: 5, opacity: 1, dashArray: "1 11", lineCap: "round" }).addTo(map);
-      layersRef.current.push(line);
+      routeSegments(routeOption, safeRoute).forEach(({ points, color, walking }) => {
+        const line = L.polyline(points, { color, weight: 5, opacity: 1, dashArray: walking ? "1 10" : null, lineCap: "round", lineJoin: "round" }).addTo(map);
+        layersRef.current.push(line);
+      });
 
       // The affected stretch, drawn over the route in the disruption colour.
       // Same requirement: "the affected portion clearly distinguished from the
@@ -235,7 +239,7 @@ export function OneMapCanvas({
         layersRef.current.push(hit);
       });
 
-      const bounds = safeCompare.length > 1 ? line.getBounds().extend(L.latLngBounds(safeCompare)) : line.getBounds();
+      const bounds = safeCompare.length > 1 ? L.latLngBounds(safeRoute).extend(L.latLngBounds(safeCompare)) : L.latLngBounds(safeRoute);
       if (fitRoute) map.fitBounds(bounds, { padding: [34, 34] });
     }
     if (isLL(marker)) {
@@ -269,10 +273,17 @@ export function OneMapCanvas({
       layersRef.current.push(me);
     }
     if (isLL(pin)) {
-      const rust = getComputedStyle(document.documentElement).getPropertyValue("--crowd-busy").trim() || "#b3402c";
-      const halo = L.circleMarker(pin, { radius: 16, color: rust, weight: 2, opacity: 0.45, fillColor: rust, fillOpacity: 0.12 }).addTo(map);
-      const p = L.circleMarker(pin, { radius: 8, color: "#fff", weight: 3, fillColor: rust, fillOpacity: 1 }).addTo(map);
-      layersRef.current.push(halo, p);
+      const p = L.marker(pin, {
+        title: "Dropped pin",
+        zIndexOffset: 900,
+        icon: L.divIcon({
+          className: "sv-dropped-pin",
+          html: '<svg width="32" height="42" viewBox="0 0 32 42" aria-hidden="true"><path fill="#ff0000" stroke="#ffffff" stroke-width="1.5" d="M16 1C7.7 1 1 7.7 1 16c0 11 15 25 15 25s15-14 15-25C31 7.7 24.3 1 16 1Z"/><circle cx="16" cy="15" r="5" fill="#ffffff"/></svg>',
+          iconSize: [32, 42],
+          iconAnchor: [16, 42],
+        }),
+      }).addTo(map);
+      layersRef.current.push(p);
     }
     if (isLL(origin)) {
       const start = L.circleMarker(origin, {
@@ -427,7 +438,7 @@ export function OneMapCanvas({
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(safeRoute), JSON.stringify(safeCompare), JSON.stringify(affected), JSON.stringify(marker), markerAccuracy, JSON.stringify(origin), JSON.stringify(dest), JSON.stringify(pin), JSON.stringify(safeSavedPlaces), JSON.stringify(safeBusStops), JSON.stringify(safeZones), JSON.stringify(safeIssues)]);
+  }, [JSON.stringify(routeOption), JSON.stringify(safeRoute), JSON.stringify(safeCompare), JSON.stringify(affected), JSON.stringify(marker), markerAccuracy, JSON.stringify(origin), JSON.stringify(dest), JSON.stringify(pin), JSON.stringify(safeSavedPlaces), JSON.stringify(safeBusStops), JSON.stringify(safeZones), JSON.stringify(safeIssues)]);
 
   const lastTokenRef = useRef(recenterToken);
   useEffect(() => {
