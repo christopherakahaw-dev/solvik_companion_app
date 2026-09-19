@@ -38,9 +38,9 @@ test("with nothing wrong, each persona gets its own default", () => {
   assert.equal(modeFor("stepFree", {}), "step");
 });
 
-test("a six-minute delay is noise to one commuter and news to another", () => {
-  // "A five-minute delay is noise; a fifteen-minute delay costs her a meeting."
-  assert.equal(shouldInterrupt("fixed", { delayMins: 6 }), false);
+test("a six-minute delay is now news to all commuters based on new preference", () => {
+  // "Notify me when my route gets disrupted." -> interruptAfterMins: 0
+  assert.equal(shouldInterrupt("fixed", { delayMins: 6 }), true);
   assert.equal(shouldInterrupt("fixed", { delayMins: 20 }), true);
   assert.equal(shouldInterrupt("flexible", { delayMins: 6 }), true);
 });

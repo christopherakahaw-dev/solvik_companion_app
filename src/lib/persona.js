@@ -13,11 +13,11 @@ export const PERSONAS = {
   fixed: {
     id: "fixed",
     name: "Fixed Schedule",
-    blurb: "Same trip every day. Tell me only when it actually matters.",
+    blurb: "Same trip everyday. Notify me when my route gets disrupted.",
     example: "Reliable daily trips with a firm arrival time.",
     mode: "fast",
-    // A five-minute delay is noise to her; fifteen costs a meeting.
-    interruptAfterMins: 15,
+    // Notifies for any disruption as requested
+    interruptAfterMins: 0,
     liftOutageBlocks: false,
     rainChangesRoute: false,
     largeText: false,
@@ -31,7 +31,7 @@ export const PERSONAS = {
       leaveMins: 7 * 60 + 40,
       arriveBy: 8 * 60 + 45,
       label: "",
-      schedule: "",
+      schedule: "Defaults the fastest routes available",
       expected: "EWL with the walk at both ends",
     },
     fit: "",
@@ -39,8 +39,8 @@ export const PERSONAS = {
   },
   flexible: {
     id: "flexible",
-    name: "Flexible and Multi-Modal",
-    blurb: "I'll leave later to avoid a crush. Cycling and buses both count.",
+    name: "Flexible and Multi-Modal (Default)",
+    blurb: "I'm okay with transfers along my journey.",
     example: "Comfort-first travel with quieter times and more ways to go.",
     mode: "quiet",
     interruptAfterMins: 5,
@@ -57,7 +57,7 @@ export const PERSONAS = {
       leaveMins: 8 * 60,
       flexibleMins: 60,
       label: "",
-      schedule: "Flexible Journeys",
+      schedule: "Defaults the most comfortable routes with least crowd levels.",
       expected: "Comfort-first transit, bus or cycling",
     },
     fit: "Comfort and predictability rank ahead of raw speed; a quieter departure may win.",
@@ -66,7 +66,7 @@ export const PERSONAS = {
   stepFree: {
     id: "stepFree",
     name: "Easy and Accessible",
-    blurb: "I need lifts and shelter, and I plan the whole trip before I leave.",
+    blurb: "Suitable for the Elderly and people with mobility issues. I need lifts and shelter.",
     example: "Accessible door-to-door trips with lifts and shorter walks.",
     mode: "step",
     // She will not improvise on a platform, so anything that breaks the route
@@ -84,7 +84,7 @@ export const PERSONAS = {
       leaveMins: 9 * 60,
       arriveBy: 10 * 60,
       label: "",
-      schedule: "Accessible routes tailored to your needs",
+      schedule: "Defaults the routes with the least walking.",
       expected: "Step-free, low-walking door-to-door route",
     },
     fit: "Step-free access, fewer changes and short walks outrank a faster arrival.",
@@ -92,7 +92,7 @@ export const PERSONAS = {
   },
 };
 
-export const DEFAULT_PERSONA = "fixed";
+export const DEFAULT_PERSONA = "flexible";
 
 export function personaOf(id) {
   return PERSONAS[id] || PERSONAS[DEFAULT_PERSONA];

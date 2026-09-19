@@ -122,9 +122,9 @@ export function Intro({ v }) {
           </div>
         )}
 
-        {v.introS1 && (
+        {v.introS1 && v.introJourney?.isFixed && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.introJourney?.name}&apos;s journey</div>
+            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Fixed Schedule&apos;s journey</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>This is the door-to-door journey Solvik will plan immediately.</div>
             {v.introJourney && <div style={{ marginTop: 22, padding: 18, borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)", boxShadow: "var(--shadow-card)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: "14px 12px", alignItems: "start" }}>
@@ -132,15 +132,13 @@ export function Intro({ v }) {
                 <div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>From</small>
-                    {v.introJourney.canEditLocations && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingFrom(!editingFrom)}
-                        style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
-                      >
-                        {editingFrom ? "Done" : "Change"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditingFrom(!editingFrom)}
+                      style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                    >
+                      {editingFrom ? "Done" : "Change"}
+                    </button>
                   </div>
                   {editingFrom ? (
                     <div style={{ marginTop: 6 }}>
@@ -161,9 +159,9 @@ export function Intro({ v }) {
                     </div>
                   ) : (
                     <strong
-                      onClick={() => v.introJourney.canEditLocations && setEditingFrom(true)}
-                      style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: v.introJourney.canEditLocations ? "pointer" : "default" }}
-                      title={v.introJourney.canEditLocations ? "Click to change origin" : undefined}
+                      onClick={() => setEditingFrom(true)}
+                      style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: "pointer" }}
+                      title="Click to change origin"
                     >
                       {v.introJourney.from}
                     </strong>
@@ -174,15 +172,13 @@ export function Intro({ v }) {
                 <div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>To</small>
-                    {v.introJourney.canEditLocations && (
-                      <button
-                        type="button"
-                        onClick={() => setEditingTo(!editingTo)}
-                        style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
-                      >
-                        {editingTo ? "Done" : "Change"}
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => setEditingTo(!editingTo)}
+                      style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                    >
+                      {editingTo ? "Done" : "Change"}
+                    </button>
                   </div>
                   {editingTo ? (
                     <div style={{ marginTop: 6 }}>
@@ -203,9 +199,9 @@ export function Intro({ v }) {
                     </div>
                   ) : (
                     <strong
-                      onClick={() => v.introJourney.canEditLocations && setEditingTo(true)}
-                      style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: v.introJourney.canEditLocations ? "pointer" : "default" }}
-                      title={v.introJourney.canEditLocations ? "Click to change destination" : undefined}
+                      onClick={() => setEditingTo(true)}
+                      style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: "pointer" }}
+                      title="Click to change destination"
                     >
                       {v.introJourney.to}
                     </strong>
@@ -215,20 +211,19 @@ export function Intro({ v }) {
 
               <div style={{ height: 1, background: "var(--border-card)", margin: "16px 0" }} />
 
-              {v.introJourney.isFixed && (
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, padding: "8px 12px", background: "var(--sand-100)", borderRadius: "var(--radius-card)" }}>
-                  <div style={{ font: "var(--type-body-strong)", color: "var(--text-strong)", display: "flex", alignItems: "center", gap: 6, fontSize: "13px" }}>
-                    <Icon name="clock-3" size={15} />
-                    <span>Change Arrive By:</span>
-                  </div>
-                  <ArrivalTimePicker value={v.introArriveByTime} onChange={v.setIntroArriveBy} />
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, padding: "8px 12px", background: "var(--sand-100)", borderRadius: "var(--radius-card)" }}>
+                <div style={{ font: "var(--type-body-strong)", color: "var(--text-strong)", display: "flex", alignItems: "center", gap: 6, fontSize: "13px" }}>
+                  <Icon name="clock-3" size={15} />
+                  <span>Change Arrive By:</span>
                 </div>
-              )}
-
-              <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--type-body-strong)", color: "var(--text-strong)" }}>
-                <Icon name="clock-3" size={17} />
-                <span>{v.introJourney.schedule}</span>
+                <ArrivalTimePicker value={v.introArriveByTime} onChange={v.setIntroArriveBy} />
               </div>
+              {v.introJourney.schedule ? (
+                <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--type-body-strong)", color: "var(--text-strong)" }}>
+                  <Icon name="clock-3" size={17} />
+                  <span>{v.introJourney.schedule}</span>
+                </div>
+              ) : null}
               {v.introJourney.hasCalculatedTravel && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, font: "var(--type-caption)", color: "var(--text-accent)", marginTop: 4, marginLeft: 26 }}>
                   <span>{v.introCalculatingTravel ? "Calculating travel time…" : `Estimated ${v.introTravelMins} mins travel time`}</span>
@@ -241,16 +236,6 @@ export function Intro({ v }) {
                 </div>
               ) : null}
             </div>}
-            {v.introJourney && v.introJourney.fit && !v.introJourney.isFixed ? (
-              <div style={{ marginTop: 12, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--accent-soft)", color: "var(--text-body)", font: "var(--type-caption)", textWrap: "pretty" }}>
-                <strong style={{ color: "var(--text-accent)" }}>Why this fit:</strong> {v.introJourney.fit}
-              </div>
-            ) : null}
-            {v.introJourney && !v.introJourney.featured && (
-              <div style={{ marginTop: 10, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--sand-100)", color: "var(--text-muted)", font: "var(--type-caption)", textWrap: "pretty" }}>
-                <strong>Honest limitation:</strong> {v.introJourney.limitation}
-              </div>
-            )}
           </div>
         )}
 
