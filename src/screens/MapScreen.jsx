@@ -95,6 +95,7 @@ export function MapScreen({ v }) {
         affected={v.affectedSpans}
         marker={v.userMarker}
         markerAccuracy={v.userAccuracy}
+        heading={v.userHeading}
         origin={v.routeOriginCoord}
         dest={v.destCoord}
         pin={v.pinCoord}
@@ -103,6 +104,8 @@ export function MapScreen({ v }) {
         zones={v.routeCrowdStations}
         issues={v.mapIssues}
         onMapClick={v.dropPin}
+        onRecenter={v.locateMe}
+        recenterBottom={v.locateBottom}
         zoomControls={false}
         recenterToken={v.recenterToken}
         height="100%"

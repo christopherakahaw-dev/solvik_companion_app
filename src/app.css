@@ -615,6 +615,8 @@
   pointer-events: none;
 }
 .sv-auth-card { position: relative; z-index: 1; width: 100%; min-width: 0; max-width: 390px; margin: 0 auto; }
+.sv-auth-topbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
+.sv-auth-private { flex: none; display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 999px; color: var(--text-muted); background: var(--sand-200); font: var(--weight-medium) 12px/1 var(--font-body); white-space: nowrap; }
 .sv-auth-brand { display: flex; align-items: center; gap: 10px; font: var(--weight-heavy) 21px/1 var(--font-display); color: var(--text-strong); letter-spacing: -.035em; }
 .sv-auth-mark { width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; border-radius: 13px; color: var(--text-on-accent); background: var(--accent); box-shadow: 0 8px 20px color-mix(in oklch, var(--accent) 28%, transparent); }
 .sv-auth-copy { margin: 34px 0 22px; }
@@ -647,6 +649,10 @@
 .sv-auth-guest > span::before, .sv-auth-guest > span::after { content: ""; flex: 1; height: 1px; background: var(--border-hairline); }
 .sv-auth-guest p { margin: 0; color: var(--text-subtle); font: var(--type-caption); line-height: 1.4; text-wrap: pretty; }
 .sv-auth-footer { position: relative; z-index: 1; max-width: 330px; margin: 28px auto 0; text-align: center; color: var(--text-subtle); font: var(--type-caption); line-height: 1.45; text-wrap: pretty; }
+@media (max-width: 350px) {
+  .sv-auth-private { padding-inline: 7px; font-size: 11px; }
+  .sv-auth-copy h1 { font-size: 30px; }
+}
 @media (max-height: 650px) {
   .sv-auth-screen { padding-top: max(18px, env(safe-area-inset-top)); }
   .sv-auth-copy { margin: 20px 0 16px; }
@@ -835,7 +841,6 @@
 .sv-map-screen.has-route .sv-map-leading { display: flex; }
 .sv-map-back { border: 1px solid var(--border-card); }
 .sv-map-back:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
-
 /* Quiet, compact place results with natural letter spacing. */
 .sv-map-results { border-radius: 16px; box-shadow: 0 6px 22px rgba(32,30,29,.10); }
 .sv-map-results, .sv-map-results button, .sv-map-results span, .sv-map-results div { letter-spacing: normal !important; }

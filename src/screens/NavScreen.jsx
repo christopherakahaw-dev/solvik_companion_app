@@ -30,7 +30,7 @@ export function NavScreen({ v }) {
   const pauseFollowing = useCallback(() => setFollowing(false), []);
   return (
     <div style={{ position: "absolute", inset: 0 }}>
-      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} dest={v.destCoord} fitRoute={false} followLocation={following} onExplore={pauseFollowing} recenterToken={recenterToken} zoomControls={false} height="100%" />
+      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} heading={v.navHeading} dest={v.destCoord} fitRoute={false} followLocation={following} onExplore={pauseFollowing} recenterToken={recenterToken} zoomControls={false} height="100%" />
 
       <button type="button" className={`sv-nav-follow${following ? " is-following" : ""}`} style={{ bottom: `calc(min(${v.navSheetStyle.height}px, 50%) + var(--sv-nav-bottom-gap, 0px) + 12px)`, transition: v.navSheetStyle.transition.replace("height", "bottom") }} aria-label={following ? "Following your location" : "Resume following my location"} aria-pressed={following} onClick={() => { setFollowing(true); setRecenterToken((token) => token + 1); }}>
         <Icon name="locate-fixed" size={19} />

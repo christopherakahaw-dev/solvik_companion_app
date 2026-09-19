@@ -26,15 +26,17 @@ import { requestNotify, showNotification, scheduleLeaveAlert, notifySupported } 
 import { getForecast } from "../api/forecast";
 import { getPosition, watchPosition, clearWatch, messageForError, getLastPosition } from "../lib/geolocation";
 import { acceptFix, alongMAtTime, coordAt, stepAtTime, timeAtAlongM, STALE_FIX_MS } from "../lib/navProgress";
-import { metresBetween } from "../lib/geometry";
+import { metresBetween, bearingBetween } from "../lib/geometry";
+import { subscribeHeading } from "../lib/compass";
 import { resolveRouteOrigin } from "../lib/routeOrigin";
 import { routeFailure, routeRecoveryModes } from "../lib/routeFailure";
 import { addressDetail, durationLabel, forecastSlots, remapOptionLabels, singaporeClock } from "../lib/display";
 import {
   KEYS, loadStored, store, rememberSearch, recentSearches, clearSearches,
   loadReadAlerts, markAlertsRead, alertId, loadSavedPlaces, saveSavedPlaces,
-  savedPlaceDetail, loadPreferences, clearAllUserData,
+  savedPlaceDetail, loadPreferences, savePreferences, clearAllUserData,
 } from "../lib/storage";
+import { loginUserApi, registerUserApi, getMeApi, savePreferencesApi, logoutUserApi } from "../api/auth";
 
 const ONBOARDED_KEY = KEYS.onboarded;
 const COMMUTES_KEY = KEYS.commutes;
@@ -100,7 +102,8 @@ export class AppLogic extends Component {
     // that beats making them answer the same question twice — they can still
     // change it on the Today tab.
     if (!prefs.persona) {
-      prefs.persona = prefs.stepFree ? "stepFree" : prefs.avoidCrowds || prefs.lessWalking ? "flexible" : DEFAULT_PERSONA;
+      if (prefs.stepFree) prefs.persona = "stepFree";
+      else if (prefs.avoidCrowds || prefs.lessWalking) prefs.persona = "flexible";
     }
     return prefs;
   })();
@@ -113,7 +116,13 @@ export class AppLogic extends Component {
     addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcAlertTab: "personal", fcWatch: [], crowdOn: false,
     hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
-    screen: loadStored(ONBOARDED_KEY, false) ? "map" : "intro",
+    authUser: loadStored(KEYS.authUser, null),
+    isGuest: loadStored(KEYS.isGuest, false),
+    authBusy: false,
+    authError: null,
+    screen: (!loadStored(KEYS.authUser, null) && !loadStored(KEYS.isGuest, false))
+      ? "auth"
+      : (loadPreferences()?.travelStyleSelected ? "map" : "intro"),
     introScenario: null,
     rep: "pick", repType: null, sev: 1, rewardRedemptions: loadStored(KEYS.rewardRedemptions, []), toast: null, tick: 0,
     planned: { works: [], roadWorks: [], busChanges: [], pending: true, error: null },
@@ -124,7 +133,7 @@ export class AppLogic extends Component {
     photo: null, cameraOpen: false, reportBusy: false, reportResult: null,
     navPhoto: null, navCameraOpen: false,
     query: "", dest: null, routeOrigin: null, searchTarget: "dest", searchOpen: false, tripAvoid: null, tripAvoidStations: null, tripDeparture: null, tripMode: "transit", tripRoute: 0, tripCollapsed: true,
-    userLoc: null, userAccuracy: null, userFixAt: null, locating: false, routeLocationPending: false, recenterToken: 0,
+    userLoc: null, userAccuracy: null, userHeading: null, userFixAt: null, locating: false, routeLocationPending: false, recenterToken: 0,
     // Turn-by-turn progress, advanced only by fixes good enough to trust.
     navProgress: null, navFixStatus: null,
     // Remote data, each held with its own pending/error so screens can say
@@ -151,6 +160,20 @@ export class AppLogic extends Component {
     stop: { data: null, pending: false, error: null, requested: false },
     nearbyStops: { items: [], pending: false, error: null, requested: false },
   };
+
+  componentDidMount() {
+    this._unsubHeading = subscribeHeading((heading) => {
+      if (this.state.userHeading !== heading) {
+        this.setState({ userHeading: heading });
+      }
+    });
+  }
+
+  componentWillUnmount() {
+    if (this._unsubHeading) {
+      this._unsubHeading();
+    }
+  }
 
   effectiveRouteOrigin() {
     return resolveRouteOrigin({
@@ -194,6 +217,149 @@ export class AppLogic extends Component {
     this.requestCurrentLocation(true, true).catch(() => {});
   };
 
+  authLogin = async (username, password) => {
+    this.setState({ authBusy: true, authError: null });
+    try {
+      const res = await loginUserApi(username, password);
+      const user = {
+        ...res.user,
+        token: res.token,
+        preferences: res.preferences || {},
+      };
+      store(KEYS.authUser, user);
+      store(KEYS.isGuest, false);
+
+      // Hydrate remote preferences if user has them saved
+      let nextPrefs = this.state.routingPreferences;
+      let nextPlaces = this.state.savedPlaces;
+      const remotePrefs = res.preferences || user.preferences;
+      if (remotePrefs && typeof remotePrefs === "object") {
+        if (remotePrefs.routingPreferences) {
+          nextPrefs = { ...nextPrefs, ...remotePrefs.routingPreferences };
+          store(KEYS.preferences, nextPrefs);
+        }
+        if (remotePrefs.savedPlaces) {
+          nextPlaces = { ...nextPlaces, ...remotePrefs.savedPlaces };
+          saveSavedPlaces(nextPlaces);
+        }
+      }
+
+      const hasSelectedStyle = Boolean(
+        remotePrefs?.routingPreferences?.travelStyleSelected === true ||
+        remotePrefs?.travelStyleSelected === true ||
+        remotePrefs?.routingPreferences?.travelStyle ||
+        remotePrefs?.routingPreferences?.persona ||
+        nextPrefs?.travelStyleSelected === true ||
+        nextPrefs?.travelStyle ||
+        nextPrefs?.persona
+      );
+      if (hasSelectedStyle) {
+        store(ONBOARDED_KEY, 1);
+      }
+      const nextScreen = hasSelectedStyle ? "map" : "intro";
+      this.setState({
+        authUser: user,
+        isGuest: false,
+        authBusy: false,
+        authError: null,
+        routingPreferences: nextPrefs,
+        savedPlaces: nextPlaces,
+        screen: nextScreen,
+      });
+      this.flash(`Signed in as ${user.username}`);
+      return user;
+    } catch (err) {
+      this.setState({ authBusy: false, authError: err.message || "Failed to sign in." });
+      throw err;
+    }
+  };
+
+  authRegister = async (username, password) => {
+    this.setState({ authBusy: true, authError: null });
+    try {
+      const currentPayload = {
+        routingPreferences: this.state.routingPreferences,
+        savedPlaces: this.state.savedPlaces,
+      };
+      const res = await registerUserApi(username, password, currentPayload);
+      const user = {
+        ...res.user,
+        token: res.token,
+        preferences: res.preferences || currentPayload,
+      };
+      store(KEYS.authUser, user);
+      store(KEYS.isGuest, false);
+
+      const hasSelectedStyle = Boolean(
+        this.state.routingPreferences?.travelStyleSelected === true ||
+        this.state.routingPreferences?.travelStyle ||
+        this.state.routingPreferences?.persona
+      );
+      if (hasSelectedStyle) {
+        store(ONBOARDED_KEY, 1);
+      }
+      const nextScreen = hasSelectedStyle ? "map" : "intro";
+      this.setState({
+        authUser: user,
+        isGuest: false,
+        authBusy: false,
+        authError: null,
+        screen: nextScreen,
+      });
+      this.flash(`Account created! Welcome, ${user.username}`);
+      return user;
+    } catch (err) {
+      this.setState({ authBusy: false, authError: err.message || "Failed to create account." });
+      throw err;
+    }
+  };
+
+  authContinueAsGuest = () => {
+    store(KEYS.isGuest, true);
+    const hasSelectedStyle = Boolean(this.state.routingPreferences?.travelStyleSelected === true);
+    if (hasSelectedStyle) {
+      store(ONBOARDED_KEY, 1);
+    }
+    const nextScreen = hasSelectedStyle ? "map" : "intro";
+    this.setState({
+      authUser: null,
+      isGuest: true,
+      authError: null,
+      screen: nextScreen,
+    });
+    this.flash("Browsing as guest");
+  };
+
+  authLogout = async () => {
+    const token = this.state.authUser?.token;
+    if (token) {
+      logoutUserApi(token).catch(() => {});
+    }
+    store(KEYS.authUser, null);
+    store(KEYS.isGuest, false);
+    this.setState({
+      authUser: null,
+      isGuest: false,
+      authError: null,
+      screen: "auth",
+    });
+    this.flash("Signed out");
+  };
+
+  syncAuthPreferences = async (customPrefs = null, customPlaces = null) => {
+    const user = this.state.authUser;
+    if (!user || !user.token) return;
+    try {
+      const payload = {
+        routingPreferences: customPrefs || this.state.routingPreferences,
+        savedPlaces: customPlaces || this.state.savedPlaces,
+      };
+      await savePreferencesApi(user.token, payload);
+    } catch {
+      // Background sync, failures are non-critical
+    }
+  };
+
   findNearbyBusStops = () => {
     const request = {};
     this._nearbyStopsRequest = request;
@@ -229,9 +395,17 @@ export class AppLogic extends Component {
   // updates the position and the trip progress in one state change.
   applyFix = (fix, extra) => {
     this.setState((st) => {
+      let userHeading = typeof fix.heading === "number" && !isNaN(fix.heading) ? fix.heading : st.userHeading;
+      if (userHeading == null && st.userLoc && fix.coords) {
+        const d = metresBetween(st.userLoc, fix.coords);
+        if (d > 1.5) {
+          userHeading = Math.round(bearingBetween(st.userLoc, fix.coords));
+        }
+      }
       const next = {
         userLoc: fix.coords,
         userAccuracy: fix.accuracy,
+        userHeading,
         userFixAt: fix.at || Date.now(),
         ...(typeof extra === "function" ? extra(st) : extra || {}),
       };
@@ -1702,10 +1876,14 @@ export class AppLogic extends Component {
     if (s.fcAt !== prevState.fcAt) this.loadCrowding(s.fcAt || null);
 
     if (s.savedList !== prevState.savedList) store(COMMUTES_KEY, s.savedList);
-    if (s.savedPlaces !== prevState.savedPlaces) saveSavedPlaces(s.savedPlaces);
+    if (s.savedPlaces !== prevState.savedPlaces) {
+      saveSavedPlaces(s.savedPlaces);
+      if (s.authUser) this.syncAuthPreferences(s.routingPreferences, s.savedPlaces);
+    }
     if (s.routingPreferences !== prevState.routingPreferences) {
       store(KEYS.preferences, s.routingPreferences);
       this.refreshAiMemory();
+      if (s.authUser) this.syncAuthPreferences(s.routingPreferences, s.savedPlaces);
     }
     if (s.rewardRedemptions !== prevState.rewardRedemptions) store(KEYS.rewardRedemptions, s.rewardRedemptions);
 
@@ -2186,13 +2364,13 @@ export class AppLogic extends Component {
     const summary = selected ? [
       { text: `${selected.route.label} is saved as the journey Solvik will open first.` },
       { text: selected.fit },
-      { text: selected.id === "fixed" ? "Solvik stays quiet for minor delays and interrupts Rachel only when the impact reaches 15 minutes." : selected.limitation },
+      { text: selected.id === "fixed" ? "Solvik stays quiet for minor delays and interrupts only when the impact reaches 15 minutes." : selected.limitation },
       { text: "Live conditions may revise the recommendation. Any issue shown is tied to this route and marked on the map." },
     ] : [];
     return {
       isIntro: sc === "intro",
       introS0: step === 0, introS1: step === 1, introS2: step === 2, introS3: step === 3,
-      introCanBack: step > 0,
+      introCanBack: true,
       introDots: [0, 1, 2, 3].map((idx) => ({
         style: { width: idx === step ? 18 : 6, height: 6, borderRadius: 999, background: idx <= step ? "var(--accent)" : "var(--sand-300)", transition: "width 220ms cubic-bezier(.2,.7,.3,1),background-color 220ms linear" },
       })),
@@ -2203,7 +2381,7 @@ export class AppLogic extends Component {
       ],
       introRoles: personaList().map((p) => ({
         id: p.id,
-        label: p.id === "fixed" ? "Rachel · fixed schedule" : p.id === "flexible" ? "Arjun · flexible and multi-modal" : "Mdm Lim · step-free travel",
+        label: p.id === "fixed" ? "Fixed Schedule" : p.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
         sub: p.blurb,
         icon: scenarioIcon[p.id],
         route: p.route.label,
@@ -2216,7 +2394,7 @@ export class AppLogic extends Component {
         toggle: () => this.setState({ introScenario: p.id }),
       })),
       introJourney: selected ? {
-        name: selected.id === "fixed" ? "Rachel" : selected.id === "flexible" ? "Arjun" : "Mdm Lim",
+        name: selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
         from: selected.route.from.name,
         to: selected.route.to.name,
         schedule: selected.route.schedule,
@@ -2227,7 +2405,7 @@ export class AppLogic extends Component {
       } : null,
       introSummaryTitle: selected ? `${selected.route.label} is ready` : "Choose a journey first",
       introSummary: summary,
-      introCta: s.introSaving ? "Preparing route…" : ["Choose a commuter", selected ? `Continue with ${selected.id === "fixed" ? "Rachel" : selected.id === "flexible" ? "Arjun" : "Mdm Lim"}` : "Choose one to continue", "Review this setup", "Show my route"][step],
+      introCta: s.introSaving ? "Preparing route…" : ["Choose your style", selected ? `Continue with ${selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible"}` : "Choose one to continue", "Review this setup", "Show my route"][step],
       introError: s.introError || "",
       introCanSkip: false,
       introInvalid: false,
@@ -2242,6 +2420,8 @@ export class AppLogic extends Component {
         const routingPreferences = {
           ...(s.routingPreferences || {}),
           persona: persona.id,
+          travelStyle: persona.id,
+          travelStyleSelected: true,
           scenario: persona.id,
           stepFree: persona.id === "stepFree",
           lessWalking: persona.id === "stepFree",
@@ -2259,8 +2439,23 @@ export class AppLogic extends Component {
         const destination = { name: persona.route.to.name, detail: persona.route.to.address, ll: persona.route.to.ll, kind: "Scenario" };
         this.setState({ introSaving: true, introError: "" });
         try {
+          savePreferences(routingPreferences);
+          saveSavedPlaces(savedPlaces);
+          let updatedAuthUser = s.authUser;
+          if (s.authUser) {
+            updatedAuthUser = {
+              ...s.authUser,
+              preferences: {
+                routingPreferences,
+                savedPlaces,
+              },
+            };
+            store(KEYS.authUser, updatedAuthUser);
+            this.syncAuthPreferences(routingPreferences, savedPlaces).catch(() => {});
+          }
           this.setState({
             screen: "map", introStep: 0, introSaving: false,
+            authUser: updatedAuthUser,
             savedPlaces,
             savedList: [commute, ...(s.savedList || []).filter((item) => item.source !== "scenario")],
             routingPreferences,
@@ -2281,7 +2476,13 @@ export class AppLogic extends Component {
           this.setState({ introSaving: false, introError: error?.message || "Setup could not be saved. Try again." });
         }
       },
-      introBack: () => this.setState({ introStep: Math.max(0, step - 1) }),
+      introBack: () => {
+        if (step === 0) {
+          this.setState({ screen: "auth", introStep: 0, introScenario: null, introError: "" });
+        } else {
+          this.setState({ introStep: Math.max(0, step - 1), introError: "" });
+        }
+      },
       introSkip: () => {
         this.setState({ screen: "map", introStep: 0 });
         store(ONBOARDED_KEY, 1);
@@ -2706,6 +2907,7 @@ export class AppLogic extends Component {
       navCoord: s.userLoc || coordAt(navOpt, navAlongM) || navGeometry[0] || ORIGIN,
       navMarker: s.userLoc || null,
       navAccuracy: s.userLoc ? s.userAccuracy : null,
+      navHeading: s.userHeading,
       navProgressStyle: { width: Math.round(navFrac * 100) + "%", height: "100%", background: "var(--accent)", borderRadius: 999, transition: "width 1s linear" },
       setStepsRef: (el) => { this.stepsEl = el; },
       stepsPagerStyle: {
@@ -2846,6 +3048,15 @@ export class AppLogic extends Component {
         style: { cursor: "pointer", borderRadius: "999px", padding: "8px 14px", font: "var(--weight-semibold) 13px/1 var(--font-body)", border: "1px solid " + (sc === id ? "var(--accent)" : "var(--border-hairline)"), background: sc === id ? "var(--accent)" : "var(--surface-card)", color: sc === id ? "var(--text-on-accent)" : "var(--text-muted)", transition: "background 150ms cubic-bezier(.2,.7,.3,1)" },
       })),
       ...this.introVals(s, sc),
+      isAuth: sc === "auth",
+      authUser: s.authUser,
+      isGuest: !!s.isGuest,
+      authBusy: !!s.authBusy,
+      authError: s.authError,
+      authLogin: this.authLogin,
+      authRegister: this.authRegister,
+      authContinueAsGuest: this.authContinueAsGuest,
+      authLogout: this.authLogout,
       isReport: sc === "report", isRewards: sc === "rewards", isPlan: sc === "plan", isAccount: sc === "account",
       showStatus: ["report", "rewards", "plan", "account"].indexOf(sc) >= 0,
       showTabs: ["map", "plan", "report", "rewards", "account"].indexOf(sc) >= 0 && !(sc === "map" && (!!s.dest || !!s.searchOpen)),
@@ -2974,6 +3185,7 @@ export class AppLogic extends Component {
       // The dot is drawn only where the device actually reported being — the
       // fallback origin is good enough to plan from, not to point at.
       userMarker: s.userLoc || null,
+      userHeading: s.userHeading,
       // No destination, no line: the map must not keep drawing the plan you
       // just backed out of.
       navRouteOption: navOpt,

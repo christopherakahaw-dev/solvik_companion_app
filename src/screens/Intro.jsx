@@ -41,7 +41,7 @@ export function Intro({ v }) {
 
         {v.introS1 && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose a real journey</div>
+            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose your style</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Solvik will open this route and explain why it fits this commuter better than the alternatives.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 22 }}>
               {v.introRoles.map((r) => (

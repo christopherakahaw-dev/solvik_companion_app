@@ -12,7 +12,7 @@
 export const PERSONAS = {
   fixed: {
     id: "fixed",
-    name: "Fixed schedule",
+    name: "Fixed Schedule",
     blurb: "Same trip every day. Tell me only when it actually matters.",
     example: "Reliable daily trips with a firm arrival time.",
     mode: "fast",
@@ -39,7 +39,7 @@ export const PERSONAS = {
   },
   flexible: {
     id: "flexible",
-    name: "Flexible and multi-modal",
+    name: "Flexible and Multi-Modal",
     blurb: "I'll leave later to avoid a crush. Cycling and buses both count.",
     example: "Comfort-first travel with quieter times and more ways to go.",
     mode: "quiet",
@@ -65,7 +65,7 @@ export const PERSONAS = {
   },
   stepFree: {
     id: "stepFree",
-    name: "Step-free access",
+    name: "Easy and Accessible",
     blurb: "I need lifts and shelter, and I plan the whole trip before I leave.",
     example: "Accessible door-to-door trips with lifts and shorter walks.",
     mode: "step",
