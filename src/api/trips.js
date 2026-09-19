@@ -47,5 +47,9 @@ export async function getTripOptions(from, to, mode, destName, opts = {}) {
   if (!res.ok) throw new Error(data.error || "Couldn't plan this trip");
   // `avoided` rides along on the array: an empty result with a reason attached
   // ("every route still uses NSL") must not read as "no routes exist".
-  return Object.assign(data.options || [], { recorded: !!data.recorded, avoided: data.avoided || null });
+  return Object.assign(data.options || [], {
+    recorded: !!data.recorded,
+    avoided: data.avoided || null,
+    suggestedMode: data.suggestedMode || null,
+  });
 }

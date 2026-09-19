@@ -106,6 +106,7 @@ export function MapScreen({ v }) {
         onMapClick={v.dropPin}
         onRecenter={v.locateMe}
         recenterBottom={v.locateBottom}
+        showRecenterControl={!routePanelOpen && !menuOpen && !weatherOpen}
         zoomControls={false}
         recenterToken={v.recenterToken}
         height="100%"
@@ -219,7 +220,7 @@ export function MapScreen({ v }) {
         )}
 
         {v.showNearbyBusStops && (
-          <div className="sv-map-results" role="region" aria-label="Bus stops near me">
+          <div className="sv-map-results sv-nearby-bus-tray" role="region" aria-label="Bus stops near me">
             <Card className="sv-nearby-bus-card" tone="plain">
               <div className="sv-nearby-bus-head">
                 <span><Icon name="bus-front" size={17} /></span>
@@ -236,13 +237,17 @@ export function MapScreen({ v }) {
                 </div>
               )}
               {v.nearbyBusStopsEmpty && <div className="sv-nearby-bus-status">No LTA bus stops were found within 1.5 km.</div>}
-              {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && v.nearbyBusStops.map((stop) => (
-                <button type="button" className="sv-nearby-bus-row" key={stop.code} onClick={stop.pick}>
-                  <span className="sv-nearby-bus-code">{stop.code}</span>
-                  <span><strong>{stop.name}</strong><small>{stop.detail}</small></span>
-                  <Icon name="arrow-right" size={16} />
-                </button>
-              ))}
+              {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && (
+                <div className="sv-nearby-bus-list" aria-label="Nearby bus stop routes">
+                  {v.nearbyBusStops.map((stop) => (
+                    <button type="button" className="sv-nearby-bus-row" key={stop.code} onClick={stop.pick} aria-label={`Route to ${stop.name}, stop ${stop.code}`}>
+                      <span className="sv-nearby-bus-code">{stop.code}</span>
+                      <span><strong>{stop.name}</strong><small>{stop.detail}</small></span>
+                      <Icon name="arrow-right" size={16} />
+                    </button>
+                  ))}
+                </div>
+              )}
               {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && v.nearbyBusStops.length > 0 && (
                 <div className="sv-nearby-bus-source">Live stop directory from LTA DataMall</div>
               )}

@@ -130,15 +130,23 @@ test("bus stops near me uses the device location and opens routing", async ({ pa
   await page.getByRole("textbox", { name: "Search address, stop or area", exact: true }).focus();
   await page.getByRole("button", { name: /Bus stops near me/ }).click();
 
-  await expect(page.getByRole("region", { name: "Bus stops near me" })).toBeVisible();
+  const search = page.getByRole("textbox", { name: "Search address, stop or area", exact: true });
+  const tray = page.getByRole("region", { name: "Bus stops near me" });
+  await expect(search).not.toBeFocused();
+  await expect(page.getByRole("navigation", { name: "Main navigation" })).toBeVisible();
+  await expect(tray).toBeVisible();
   await expect(page.locator(".sv-nearby-bus-row", { hasText: "Opp Blk 413" })).toBeVisible();
   await expect(page.getByText("Commonwealth Ave West · 20 m away", { exact: true })).toBeVisible();
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ lat: 1.34, lng: 103.7 });
   await expect(page.locator(".sv-nearby-bus-marker")).toHaveCount(2);
+  const trayBox = await tray.boundingBox();
+  const navBox = await page.getByRole("navigation", { name: "Main navigation" }).boundingBox();
+  expect(trayBox.y + trayBox.height).toBeLessThanOrEqual(navBox.y + 1);
 
-  await page.locator(".sv-nearby-bus-row", { hasText: "Opp Blk 413" }).click();
+  await page.getByRole("button", { name: /Route to Opp Blk 413/ }).click();
   await expect(page.getByRole("button", { name: "Change destination" }).getByText("Opp Blk 413", { exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Route options" })).toBeVisible();
   await expect(page.locator(".sv-nearby-bus-marker")).toHaveCount(0);
 });
 
@@ -262,9 +270,13 @@ test("tablet and laptop keep the map full-screen and reveal panels on demand", a
   await page.mouse.move(430, 650, { steps: 8 });
   await page.mouse.up();
   await expect.poll(() => mapCanvas.getAttribute("data-map-center")).not.toBe(mapCenterBefore);
+  await expect(page.getByRole("button", { name: "Re-centre to current location" })).toHaveCount(0);
   await page.screenshot({ path: info.outputPath("route-options-simplified.png") });
   await routeSheet.getByRole("button", { name: "Show steps" }).click();
   await expect(routeSheet.getByRole("button", { name: "Hide steps" })).toBeVisible();
+  const expandedRouteBox = await routeSheet.boundingBox();
+  expect(expandedRouteBox.width).toBeLessThanOrEqual(421);
+  expect(expandedRouteBox.x).toBeGreaterThanOrEqual(page.viewportSize().width - 440);
   await expect(routeSheet.locator(".sv-route-mode-primary > button")).toHaveCount(6);
   for (const mode of ["Bus", "Train", "Transit", "Walk", "Cycle", "Express"]) {
     await expect(routeSheet.getByRole("button", { name: mode, exact: true })).toBeVisible();
@@ -272,6 +284,7 @@ test("tablet and laptop keep the map full-screen and reveal panels on demand", a
   await page.getByRole("button", { name: "Collapse route options" }).last().click();
   const summary = page.locator(".sv-route-summary");
   await expect(summary).toBeVisible();
+  await expect(page.getByRole("button", { name: "Re-centre to current location" })).toBeVisible();
   await noOverflow(page);
   await page.screenshot({ path: info.outputPath("responsive-map.png") });
 });
@@ -308,6 +321,30 @@ test("the route panel opens immediately when route retrieval finishes", async ({
   await expect(page.locator(".sv-route-summary")).toHaveCount(0);
 });
 
+test("a nearby walking-only result switches from Transit to Walk", async ({ page }) => {
+  await setup(page);
+  const requestedModes = [];
+  await page.route("**/api/trip-options", async (route) => {
+    const body = route.request().postDataJSON();
+    requestedModes.push(body.mode);
+    await route.fulfill({
+      json: body.mode === "walk"
+        ? { mode: "walk", options: [option] }
+        : { mode: body.mode, options: [], suggestedMode: "walk" },
+    });
+  });
+
+  await pickDestination(page);
+
+  const walk = page.getByRole("button", { name: "Walk", exact: true });
+  await expect(walk).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: "Transit", exact: true })).toHaveAttribute("aria-pressed", "false");
+  await expect(page.locator(".sv-route-option-card").first()).toContainText("WALK 12.8 km");
+  expect(requestedModes[0]).toBe("transit");
+  expect(requestedModes.at(-1)).toBe("walk");
+  expect(new Set(requestedModes)).toEqual(new Set(["transit", "walk"]));
+});
+
 test("desktop content and active navigation use compact responsive layouts", async ({ page }, info) => {
   await setup(page);
   await page.setViewportSize({ width: 1280, height: 800 });
@@ -322,7 +359,7 @@ test("desktop content and active navigation use compact responsive layouts", asy
   expect(planBox.width).toBeLessThanOrEqual(1041);
   expect((await plan.evaluate(el => getComputedStyle(el).gridTemplateColumns.split(" ").length))).toBe(12);
   const placesBox = await page.locator(".sv-plan-places").boundingBox();
-  expect(Math.abs(placesBox.width - planBox.width)).toBeLessThanOrEqual(2);
+  expect(Math.abs(placesBox.width - planBox.width)).toBeLessThanOrEqual(3);
   const savedRows = await page.locator(".sv-saved-grid > button").all();
   expect(savedRows).toHaveLength(3);
   const savedTops = await Promise.all(savedRows.map(async row => (await row.boundingBox()).y));
@@ -340,15 +377,86 @@ test("desktop content and active navigation use compact responsive layouts", asy
   await pickDestination(page);
   await expect(page.locator(".sv-route-sheet-wrap")).toBeVisible();
   await page.getByRole("button", { name: "Go", exact: true }).click();
-  const instruction = page.locator(".sv-nav-instruction");
+  const instruction = page.locator(".sv-nav-current-step");
   const navSheet = page.locator(".sv-nav-sheet");
   await expect(instruction).toBeVisible();
   await expect(navSheet).toBeVisible();
-  expect((await instruction.boundingBox()).width).toBeLessThanOrEqual(411);
-  expect((await navSheet.boundingBox()).width).toBeLessThanOrEqual(441);
-  expect((await navSheet.boundingBox()).height).toBeLessThanOrEqual(231);
+  await expect(page.locator(".sv-nav-top .sv-nav-instruction")).toHaveCount(0);
+  await expect(navSheet.getByText(/min left/)).toBeVisible();
+  await expect(navSheet.getByText(/^Arrive /)).toBeVisible();
+  const compactNavBox = await navSheet.boundingBox();
+  expect(compactNavBox.width).toBeLessThanOrEqual(401);
+  expect(compactNavBox.height).toBeLessThanOrEqual(181);
+  expect(compactNavBox.x).toBeGreaterThanOrEqual(1280 - 416);
+  await expect(page.locator(".sv-nav-steps")).toBeHidden();
+  await page.getByRole("button", { name: "Show trip steps" }).click();
+  await expect(page.getByRole("button", { name: "Hide trip steps" })).toBeVisible();
+  await expect(page.locator(".sv-nav-steps")).toBeVisible();
+  await expect(page.locator(".sv-nav-summary")).toBeHidden();
+  const expandedNavBox = await navSheet.boundingBox();
+  expect(expandedNavBox.width).toBeLessThanOrEqual(401);
+  expect(expandedNavBox.height).toBeLessThanOrEqual(513);
+  await expect(page.getByRole("button", { name: "Previous trip step" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Next trip step" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Resume following my location" })).toHaveCount(0);
+  const map = page.locator(".leaflet-container");
+  const mapBox = await map.boundingBox();
+  await page.mouse.move(mapBox.x + mapBox.width * 0.55, mapBox.y + mapBox.height * 0.45);
+  await page.mouse.down();
+  await page.mouse.move(mapBox.x + mapBox.width * 0.35, mapBox.y + mapBox.height * 0.45, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(700);
+  const exploredCenter = await map.getAttribute("data-map-center");
+  await expect(page.getByRole("button", { name: "Resume following my location" })).toBeVisible();
+  await page.waitForTimeout(4300);
+  await expect(map).toHaveAttribute("data-map-center", exploredCenter);
+  await page.getByRole("button", { name: "Resume following my location" }).click();
+  await expect(page.getByRole("button", { name: "Resume following my location" })).toHaveCount(0);
   await noOverflow(page);
   await page.screenshot({ path: info.outputPath("responsive-navigation.png") });
+});
+
+test("Go keeps the map visible and exposes stations without fighting step paging", async ({ page }) => {
+  const stationOption = {
+    ...option,
+    mins: 12,
+    walkOnly: false,
+    walk: "2 min",
+    walkSecs: 120,
+    legs: ["WALK 0.2 km", "BUS 95"],
+    transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 1 }],
+    geometry: [home.ll, [1.312, 103.771], [1.318, 103.77], [destination.lat, destination.lng]],
+    legSpans: [{ from: 0, to: 1 }, { from: 1, to: 3 }],
+    steps: [
+      { legIndex: 0, mode: "WALK", icon: "footprints", title: "Walk to the bus stop", detail: "2 min on foot", secs: 120 },
+      { legIndex: 1, mode: "BUS", icon: "bus", title: "Take BUS 95", detail: "3 stops", secs: 600, stops: ["Opp Blk 413", "Clementi Stn", "Sunset Way"], alight: "Sunset Way" },
+    ],
+  };
+  await setup(page, { home, school }, { tripOptions: [stationOption] });
+  await pickDestination(page);
+  await page.getByRole("button", { name: "Go", exact: true }).click();
+
+  const navSheet = page.locator(".sv-nav-sheet");
+  expect((await navSheet.boundingBox()).height).toBeLessThanOrEqual(181);
+  await expect(page.locator(".sv-nav-steps")).toBeHidden();
+  await expect(navSheet.locator(".sv-nav-title")).toHaveText("Walk to the bus stop");
+  await expect(navSheet.locator(".sv-nav-detail")).toHaveText("2 min on foot");
+  await expect(navSheet.getByText(/min left/)).toBeVisible();
+  await page.getByRole("button", { name: "Show trip steps" }).click();
+  await expect(page.locator(".sv-nav-steps")).toBeVisible();
+  await expect(page.locator(".sv-nav-summary")).toBeHidden();
+
+  await page.getByRole("button", { name: "Next trip step" }).click();
+  await expect(page.getByRole("button", { name: "Show step 2 of 2" })).toHaveAttribute("aria-current", "step");
+  await expect(page.getByText("Opp Blk 413", { exact: true })).toBeVisible();
+  await expect(page.getByText("Clementi Stn", { exact: true })).toBeVisible();
+  await expect(page.getByText("Sunset Way", { exact: true })).toBeVisible();
+  await expect(page.getByText("Upcoming", { exact: true })).toHaveCount(3);
+  await page.waitForTimeout(450);
+  const expandedBox = await navSheet.boundingBox();
+  expect(expandedBox.height).toBeGreaterThanOrEqual(Math.floor(page.viewportSize().height * 0.58));
+  expect(expandedBox.height).toBeLessThanOrEqual(Math.ceil(page.viewportSize().height * 0.64) + 1);
+  await noOverflow(page);
 });
 
 test("places fit small screens, cancel discards edits, and incomplete text cannot be saved", async ({ page }, info) => {

@@ -105,6 +105,8 @@ export function OneMapCanvas({
   recenterToken = 0,
   followLocation = true,
   onExplore,
+  autoRecenterAfterExplore = true,
+  showRecenterControl = true,
   zoomControls = true,
   zoomInset = 12,
   zoomTop = "50%",
@@ -124,6 +126,8 @@ export function OneMapCanvas({
 
   const [isShifted, setIsShifted] = useState(false);
   const inactivityTimerRef = useRef(null);
+  const autoRecenterRef = useRef(autoRecenterAfterExplore);
+  autoRecenterRef.current = autoRecenterAfterExplore;
   const programmaticMoveRef = useRef(false);
   const userMarkerRef = useRef(null);
   const markerRef = useRef(marker);
@@ -204,6 +208,10 @@ export function OneMapCanvas({
       if (dist > 35) {
         setIsShifted(true);
         if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        // Normal map browsing can return to the user's location after a short
+        // pause. Turn-by-turn deliberately opts out: once the commuter moves
+        // the map, it must stay put until they explicitly resume following.
+        if (!autoRecenterRef.current) return;
         inactivityTimerRef.current = setTimeout(() => {
           if (!mapRef.current || !isLL(markerRef.current)) return;
           programmaticMoveRef.current = true;
@@ -616,7 +624,7 @@ export function OneMapCanvas({
   return (
     <div style={{ position: "relative", height, background: "var(--map-land)", overflow: "hidden", ...style }}>
       <div ref={ref} style={{ position: "absolute", inset: 0, filter: "saturate(.72) sepia(.12) brightness(1.03) contrast(.96)" }} />
-      {interactive && isShifted && isLL(marker) && (
+      {interactive && showRecenterControl && isShifted && isLL(marker) && (
         <button
           type="button"
           className="sv-map-recenter-pill"

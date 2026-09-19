@@ -49,6 +49,13 @@ const ORIGIN_FALLBACK = [1.3521, 103.8198];
 // and before the map follows them rather than holding still.
 const REPLAN_DRIFT_M = 150;
 const MAP_FOLLOW_M = 120;
+const NAV_COMPACT_H = 168;
+const NAV_STEPS_MIN_H = 220;
+// The compact sheet leaves the map almost entirely open. When the commuter
+// asks for steps, give station-heavy legs enough vertical room to be useful
+// while keeping roughly the upper third of the map available for context.
+const NAV_MAX_RATIO = 0.64;
+const NAV_MAX_CAP = 560;
 
 // A watched commute's preference, in the planner's own vocabulary.
 const COMMUTE_MODES = { Fastest: "fast", Comfort: "quiet", "Step-free": "step" };
@@ -433,8 +440,13 @@ export class AppLogic extends Component {
   findNearbyBusStops = () => {
     const request = {};
     this._nearbyStopsRequest = request;
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
     this.setState({
-      searchOpen: true,
+      // Nearby stops are a map tray, not search results. Closing search brings
+      // navigation back and leaves the stop pins visible above the tray.
+      searchOpen: false,
       searchTarget: "dest",
       query: "",
       liveResults: null,
@@ -2299,6 +2311,17 @@ export class AppLogic extends Component {
       return getTripOptions(origin, dest.ll, tripMode, dest.name, { avoid: tripAvoid, avoidStations: tripAvoidStations, date: tripDeparture?.date, time: tripDeparture?.time })
       .then((options) => {
         if (this.state.dest !== dest || this.state.tripMode !== tripMode || this.state.trips.key !== key) return;
+        if (!options.length && options.suggestedMode === "walk" && tripMode !== "walk") {
+          this.setState({
+            tripMode: "walk",
+            tripAvoid: null,
+            tripAvoidStations: null,
+            tripRoute: 0,
+            tripCollapsed: true,
+            trips: { key: null, options: [], pending: true, error: null },
+          }, () => this.flash("This destination is close enough to walk, so Walk is selected."));
+          return;
+        }
         this.setState({ trips: { key, options, pending: false, error: null, recorded: !!options.recorded, avoided: options.avoided || null }, tripRoute: 0, tripCollapsed: true });
       })
       .catch((err) => {
@@ -2388,13 +2411,14 @@ export class AppLogic extends Component {
       );
   };
 
-  navSnaps = [160, 260, 620];
+  navSnaps = [NAV_COMPACT_H, NAV_STEPS_MIN_H, NAV_MAX_CAP];
   navSnap(h) {
-    return this.navSnaps.reduce((a, b) => Math.abs(b - h) < Math.abs(a - h) ? b : a, 160);
+    return this.navSnaps.reduce((a, b) => Math.abs(b - h) < Math.abs(a - h) ? b : a, NAV_COMPACT_H);
   }
   navMaxHeight = () => {
     const sheet = document.querySelector(".sv-nav-sheet");
-    return Math.max(160, (sheet?.parentElement?.clientHeight || window.innerHeight) * 0.5);
+    const hostHeight = sheet?.parentElement?.clientHeight || window.innerHeight;
+    return Math.max(NAV_COMPACT_H, Math.min(NAV_MAX_CAP, hostHeight * NAV_MAX_RATIO));
   };
   expandNavSheet = () => this.setState({ navSheetH: this.navMaxHeight(), navDragging: false });
   startNavDrag = (e) => {
@@ -2402,20 +2426,20 @@ export class AppLogic extends Component {
     e.preventDefault();
     const sheet = e.currentTarget.closest(".sv-nav-sheet");
     const maxHeight = this.navMaxHeight();
-    const startY = e.clientY, startH = sheet?.getBoundingClientRect().height || 260;
-    const snaps = [160, Math.min(260, maxHeight), maxHeight];
+    const startY = e.clientY, startH = sheet?.getBoundingClientRect().height || NAV_COMPACT_H;
+    const snaps = [NAV_COMPACT_H, Math.min(NAV_STEPS_MIN_H, maxHeight), maxHeight];
     let current = startH, moved = false;
     this.setState({ navDragging: true });
     const move = (ev) => {
       if (Math.abs(ev.clientY - startY) > 4) moved = true;
-      current = Math.max(160, Math.min(maxHeight, startH - (ev.clientY - startY)));
+      current = Math.max(NAV_COMPACT_H, Math.min(maxHeight, startH - (ev.clientY - startY)));
       this.setState({ navSheetH: current });
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
       window.removeEventListener("pointercancel", cancel);
-      const target = moved ? snaps.reduce((a, b) => Math.abs(b - current) < Math.abs(a - current) ? b : a) : startH >= maxHeight - 2 ? 160 : maxHeight;
+      const target = moved ? snaps.reduce((a, b) => Math.abs(b - current) < Math.abs(a - current) ? b : a) : startH >= maxHeight - 2 ? NAV_COMPACT_H : maxHeight;
       this.setState({ navDragging: false, navSheetH: target });
     };
     const cancel = () => { moved = true; up(); };
@@ -2423,7 +2447,7 @@ export class AppLogic extends Component {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
   };
-  cycleNavSheet = () => this.setState({ navSheetH: (this.state.navSheetH || 260) >= this.navMaxHeight() - 2 ? 160 : this.navMaxHeight() });
+  cycleNavSheet = () => this.setState({ navSheetH: (this.state.navSheetH || NAV_COMPACT_H) >= this.navMaxHeight() - 2 ? NAV_COMPACT_H : this.navMaxHeight() });
 
   introVals(s, sc) {
     const step = s.introStep || 0;
@@ -3041,9 +3065,9 @@ export class AppLogic extends Component {
       navProgressStyle: { width: Math.round(navFrac * 100) + "%", height: "100%", background: "var(--accent)", borderRadius: 999, transition: "width 1s linear" },
       setStepsRef: (el) => { this.stepsEl = el; },
       stepsPagerStyle: {
-        flex: "1 1 auto", width: "100%", minWidth: 0, maxWidth: "100%", minHeight: 0, display: s.navSheetH != null && s.navSheetH < 240 ? "none" : "flex", alignItems: "stretch", gap: 10, overflowX: "auto", overflowY: "hidden",
+        flex: "1 1 auto", width: "100%", minWidth: 0, maxWidth: "100%", minHeight: 0, display: (s.navSheetH ?? NAV_COMPACT_H) < NAV_STEPS_MIN_H ? "none" : "flex", alignItems: "stretch", gap: 10, overflowX: "auto", overflowY: "hidden",
         scrollSnapType: s.stepsDrag ? "none" : "x mandatory", scrollbarWidth: "none",
-        cursor: s.stepsDrag ? "grabbing" : "grab", userSelect: "none",
+        cursor: s.stepsDrag ? "grabbing" : "grab", userSelect: "none", touchAction: "auto",
       },
       stepsDragStart: (e) => this.startStepsDrag(e),
       onStepsScroll: (e) => {
@@ -3057,29 +3081,48 @@ export class AppLogic extends Component {
         }, 120);
       },
       navDots: navArr.map((st, idx) => ({
+        label: `Show step ${idx + 1} of ${navArr.length}`,
+        current: idx === s.navPage,
+        pick: () => {
+          this.userScrolled = Date.now();
+          this.setState({ navPage: idx }, () => this.scrollToStep(idx));
+        },
         style: { width: idx === s.navPage ? 18 : 6, height: 6, borderRadius: 999, background: idx === s.navPage ? "var(--accent)" : idx < navIdx ? "var(--sand-400)" : "var(--sand-300)", transition: "width var(--dur-base) var(--ease-out),background-color var(--dur-base) var(--ease-standard)" },
       })),
+      navPreviousStep: () => {
+        const page = Math.max(0, s.navPage - 1);
+        this.userScrolled = Date.now();
+        this.setState({ navPage: page }, () => this.scrollToStep(page));
+      },
+      navNextStep: () => {
+        const page = Math.min(Math.max(0, navArr.length - 1), s.navPage + 1);
+        this.userScrolled = Date.now();
+        this.setState({ navPage: page }, () => this.scrollToStep(page));
+      },
+      navHasPreviousStep: s.navPage > 0,
+      navHasNextStep: s.navPage < navArr.length - 1,
       navList: navArr.map((st, idx) => {
         const done = idx < navIdx || arrived, cur = idx === navIdx && !arrived;
         const nStops = (st.stops || []).length;
-        const ROW = 32, span = Math.max(0, (nStops - 1) * ROW);
+        const ROW = 40, span = Math.max(0, (nStops - 1) * ROW);
         const prog = cur ? stepProg : done ? 1 : 0;
         const stopList = (st.stops || []).map((name, j) => {
           const sDone = done || (cur && j < passed), sNext = cur && j === passed;
           return {
             name,
+            status: sNext ? "Next" : sDone ? "Passed" : "Upcoming",
             rowStyle: { display: "flex", alignItems: "center", gap: 10, height: ROW, position: "relative", zIndex: 1 },
-            style: { font: (sNext ? "var(--weight-bold)" : "var(--weight-regular)") + " 12px/1.2 var(--font-body)", color: sNext ? "var(--text-accent)" : sDone ? "var(--text-subtle)" : "var(--text-body)", textWrap: "pretty" },
-            dotStyle: { width: sNext ? 11 : 9, height: sNext ? 11 : 9, borderRadius: 999, background: sDone ? "var(--accent)" : "var(--surface-card)", border: sDone ? "2px solid var(--accent)" : "2px solid var(--sand-400)", boxShadow: sNext ? "0 0 0 3px var(--accent-soft)" : "none" },
+            style: { flex: 1, minWidth: 0, font: (sNext ? "var(--weight-bold)" : "var(--weight-regular)") + " 13px/1.25 var(--font-body)", color: sNext ? "var(--text-accent)" : sDone ? "var(--text-subtle)" : "var(--text-body)", textWrap: "pretty" },
+            statusStyle: { flex: "none", font: "var(--weight-semibold) 9.5px/1 var(--font-body)", color: sNext ? "var(--text-accent)" : "var(--text-muted)", opacity: sNext ? 1 : 0.72 },
+            dotStyle: { width: sNext ? 11 : 9, height: sNext ? 11 : 9, borderRadius: 999, background: sDone || sNext ? "var(--accent)" : "var(--surface-card)", border: "2px solid " + (sDone || sNext ? "var(--accent)" : "var(--sand-400)"), boxShadow: sNext ? "0 0 0 4px var(--accent-soft)" : "none" },
           };
         });
         return {
           title: st.title, detail: cur && st.stops ? liveStopLine : st.detail, dur: fmtS(st.secs), icon: st.icon,
-          stopList, hasStops: nStops > 0, showVehicle: cur && nStops > 0,
+          stopList, hasStops: nStops > 0,
           laneWrapStyle: { position: "relative", marginTop: 4, paddingLeft: 0 },
           laneStyle: { position: "absolute", left: 11, top: ROW / 2, height: span, width: 4, background: "var(--sand-200)", borderRadius: 999 },
           laneFillStyle: { position: "absolute", left: 11, top: ROW / 2, height: Math.round(span * prog), width: 4, background: "var(--accent)", borderRadius: 999, transition: "height 1s linear" },
-          vehicleStyle: { position: "absolute", left: 0, top: Math.round(ROW / 2 + span * prog - 13), width: 26, height: 26, borderRadius: 999, background: "var(--accent)", color: "var(--text-on-accent)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 12px rgba(32,30,29,.3)", transition: "top 1s linear", zIndex: 2 },
           state: done ? "Done" : cur ? "Now" : "Next",
           cardStyle: { flex: "0 0 100%", minWidth: 0, boxSizing: "border-box", scrollSnapAlign: "start", background: cur ? "var(--accent-soft)" : "var(--surface-card)", border: "1px solid " + (cur ? "transparent" : "var(--border-card)"), borderRadius: "var(--radius-card)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", overscrollBehaviorY: "contain", opacity: done ? 0.62 : 1 },
           iconWrapStyle: { flex: "none", width: 30, height: 30, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: cur ? "var(--accent)" : "var(--sand-100)", color: cur ? "var(--text-on-accent)" : "var(--text-body)" },
@@ -3200,12 +3243,12 @@ export class AppLogic extends Component {
       // disappears the moment you start typing.
       showRecents: s.searchTarget === "dest" && !s.dest && !!s.searchOpen && q.length < 2 && (s.recents || []).length > 0,
       showSearchHome: s.searchTarget === "dest" && !s.dest && !!s.searchOpen && q.length < 2 && !nearbyBusState.requested,
-      showNearbyBusStops: s.searchTarget === "dest" && !s.dest && !!s.searchOpen && q.length < 2 && !!nearbyBusState.requested,
+      showNearbyBusStops: s.searchTarget === "dest" && !s.dest && q.length < 2 && !!nearbyBusState.requested,
       nearbyBusStops,
       nearbyBusStopsPending: !!nearbyBusState.pending,
       nearbyBusStopsError: nearbyBusState.error || null,
       nearbyBusStopsEmpty: !nearbyBusState.pending && !nearbyBusState.error && nearbyBusState.requested && nearbyBusStops.length === 0,
-      nearbyBusStopMarkers: nearbyBusState.requested && s.searchOpen && !dest ? nearbyBusStops.map((stop) => ({
+      nearbyBusStopMarkers: nearbyBusState.requested && !dest ? nearbyBusStops.map((stop) => ({
         code: stop.code,
         name: stop.name,
         road: stop.road,
@@ -3401,6 +3444,11 @@ export class AppLogic extends Component {
       pinDetail: s.pin ? s.pin.detail : "",
       dropPin: (ll) => {
         if (this.state.dest) return;
+        if (this.state.nearbyStops?.requested) {
+          this._nearbyStopsRequest = null;
+          this.setState({ nearbyStops: { items: [], pending: false, error: null, requested: false } });
+          return;
+        }
         if (this.state.searchOpen) {
           if (this.bt) clearTimeout(this.bt);
           const active = typeof document !== "undefined" ? document.activeElement : null;
@@ -3481,8 +3529,8 @@ export class AppLogic extends Component {
           : "Go-to route · step-free access and the shortest manageable walk come first.";
       })(),
       tripModeBlurb: {
-        bus: "Bus-first journeys, including the walk to and from each stop.",
-        train: "Rail-first journeys, including every transfer and walking connection.",
+        bus: "Bus-only journeys, plus the walk to and from each stop.",
+        train: "Train-only journeys, plus walking connections to the stations.",
         transit: "The best combined bus, rail and walking journey available.",
         walk: "A door-to-door walking route from OneMap.",
         cycle: "A door-to-door route on OneMap's cycling network.",
@@ -3578,17 +3626,17 @@ export class AppLogic extends Component {
       ...this.forecastVals(s),
       reportPick: s.rep === "pick", reportConfirm: s.rep === "confirm", reportDone: s.rep === "done",
       reportTypes: rTypes, chosenLabel: chosen.label, chosenPts: chosen.pts, severities, severityQ: sevSet.q,
-      navSheetExpanded: (s.navSheetH || 260) >= (typeof document !== "undefined" ? this.navMaxHeight() : 620) - 2,
+      navSheetExpanded: (s.navSheetH || NAV_COMPACT_H) >= (typeof document !== "undefined" ? this.navMaxHeight() : NAV_MAX_CAP) - 2,
       navSheetExpand: this.expandNavSheet,
-      navSheetCompact: s.navSheetH != null && s.navSheetH < 180,
+      navSheetCompact: (s.navSheetH ?? NAV_COMPACT_H) < NAV_STEPS_MIN_H,
       navSheetStyle: {
-        position: "absolute", left: 0, right: 0, bottom: 0, height: s.navSheetH == null ? 260 : s.navSheetH, maxHeight: "50%",
+        position: "absolute", left: 0, right: 0, bottom: 0, height: s.navSheetH == null ? NAV_COMPACT_H : s.navSheetH, maxHeight: `${NAV_MAX_RATIO * 100}%`,
         background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)",
         padding: "10px 16px 16px", display: "flex", flexDirection: "column", gap: 11, boxSizing: "border-box", overflow: "hidden",
         transition: s.navDragging ? "none" : "height 380ms cubic-bezier(.22,1,.36,1)",
       },
       navGrabStyle: { flex: "none", padding: "6px 0 4px", cursor: s.navDragging ? "grabbing" : "grab", touchAction: "none", userSelect: "none" },
-      navDotsWrapStyle: { flex: "none", display: s.navSheetH != null && s.navSheetH < 240 ? "none" : "flex", justifyContent: "center", alignItems: "center", gap: 6 },
+      navDotsWrapStyle: { flex: "none", display: (s.navSheetH ?? NAV_COMPACT_H) < NAV_STEPS_MIN_H ? "none" : "flex", justifyContent: "center", alignItems: "center", gap: 6 },
       navSheetDrag: this.startNavDrag,
       navSheetCycle: this.cycleNavSheet,
       navRepOpen: !!s.navRepOpen,

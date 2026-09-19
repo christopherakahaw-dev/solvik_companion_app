@@ -12,28 +12,41 @@ import { normalizeItinerary, crowdLevelOf, crowdScoreOf, signature, clockFrom } 
 import { decodePolyline } from "../_lib/polyline.js";
 import { withoutAny, parseAvoid } from "../_lib/avoid.js";
 
-const MODES = {
-  bus: { query: [{ mode: "bus", maxWalkDistance: 1200 }], rank: (a, b) => a.mins - b.mins, tag: "Bus" },
-  train: { query: [{ mode: "rail", maxWalkDistance: 1200 }], rank: (a, b) => a.mins - b.mins, tag: "Train" },
-  transit: { query: [{ mode: "transit", maxWalkDistance: 1200 }], rank: (a, b) => a.transfers - b.transfers || a.mins - b.mins, tag: "Transit" },
+const RAIL_MODES = new Set(["RAIL", "SUBWAY", "TRAIN", "TRAM"]);
+const hasTransit = (option) => !option?.walkOnly && (option?.transitLegs || []).length > 0;
+const busOnly = (option) => hasTransit(option) && option.transitLegs.every((leg) => leg.mode === "BUS");
+const trainOnly = (option) => hasTransit(option) && option.transitLegs.every((leg) => RAIL_MODES.has(leg.mode));
+
+export const ROUTE_MODES = {
+  bus: { query: [{ mode: "bus", maxWalkDistance: 1200 }], accept: busOnly, rank: (a, b) => a.mins - b.mins, tag: "Bus" },
+  train: { query: [{ mode: "rail", maxWalkDistance: 1200 }], accept: trainOnly, rank: (a, b) => a.mins - b.mins, tag: "Train" },
+  transit: { query: [{ mode: "transit", maxWalkDistance: 1200 }], accept: hasTransit, rank: (a, b) => a.transfers - b.transfers || a.mins - b.mins, tag: "Transit" },
   walk: { walk: true, tag: "Walk" },
   cycle: { cycle: true, tag: "Cycle" },
-  express: { query: [{ mode: "transit", maxWalkDistance: 1400 }], rank: (a, b) => a.mins - b.mins, tag: "Express" },
+  express: { query: [{ mode: "transit", maxWalkDistance: 1400 }], accept: hasTransit, rank: (a, b) => a.mins - b.mins, tag: "Express" },
   // Legacy ids remain valid for stored commutes and disruption reroutes, but
   // the route sheet now exposes the clearer transport choices above.
-  fast: { query: [{ mode: "transit", maxWalkDistance: 1000 }], rank: (a, b) => a.mins - b.mins, tag: "Fastest" },
-  budget: { query: [{ mode: "transit", maxWalkDistance: 1000 }, { mode: "bus", maxWalkDistance: 1200 }], rank: (a, b) => (a.fareValue ?? 99) - (b.fareValue ?? 99) || a.mins - b.mins, tag: "Cheapest" },
-  quiet: { query: [{ mode: "transit", maxWalkDistance: 1000 }], rank: (a, b) => (crowdScoreOf(a) ?? 9) - (crowdScoreOf(b) ?? 9) || a.mins - b.mins, tag: "Quietest" },
-  step: { query: [{ mode: "transit", maxWalkDistance: 800 }], rank: (a, b) => (b.accessibleScore ?? 0) - (a.accessibleScore ?? 0) || a.mins - b.mins, tag: "Step-free" },
-  few: { query: [{ mode: "transit", maxWalkDistance: 1200 }], rank: (a, b) => a.transfers - b.transfers || a.mins - b.mins, tag: "Fewest changes" },
-  walk: { query: [{ mode: "transit", maxWalkDistance: 500 }], rank: (a, b) => a.walkSecs - b.walkSecs || a.mins - b.mins, tag: "Least walking" },
+  fast: { query: [{ mode: "transit", maxWalkDistance: 1000 }], accept: hasTransit, rank: (a, b) => a.mins - b.mins, tag: "Fastest" },
+  budget: { query: [{ mode: "transit", maxWalkDistance: 1000 }, { mode: "bus", maxWalkDistance: 1200 }], accept: hasTransit, rank: (a, b) => (a.fareValue ?? 99) - (b.fareValue ?? 99) || a.mins - b.mins, tag: "Cheapest" },
+  quiet: { query: [{ mode: "transit", maxWalkDistance: 1000 }], accept: hasTransit, rank: (a, b) => (crowdScoreOf(a) ?? 9) - (crowdScoreOf(b) ?? 9) || a.mins - b.mins, tag: "Quietest" },
+  step: { query: [{ mode: "transit", maxWalkDistance: 800 }], accept: hasTransit, rank: (a, b) => (b.accessibleScore ?? 0) - (a.accessibleScore ?? 0) || a.mins - b.mins, tag: "Step-free" },
+  few: { query: [{ mode: "transit", maxWalkDistance: 1200 }], accept: hasTransit, rank: (a, b) => a.transfers - b.transfers || a.mins - b.mins, tag: "Fewest changes" },
+  leastWalk: { query: [{ mode: "transit", maxWalkDistance: 500 }], accept: hasTransit, rank: (a, b) => a.walkSecs - b.walkSecs || a.mins - b.mins, tag: "Least walking" },
   bike: { cycle: true, tag: "Bike" },
   // A disruption reroute. Bus-only is asked alongside transit because it is the
   // answer when rail is down, and more itineraries are requested because the
   // filter below throws some away — asking for three and dropping two leaves a
   // card with nothing on it.
-  reroute: { query: [{ mode: "transit", maxWalkDistance: 1200 }, { mode: "bus", maxWalkDistance: 1200 }], rank: (a, b) => a.mins - b.mins, tag: "Avoids the disruption", itineraries: 6 },
+  reroute: { query: [{ mode: "transit", maxWalkDistance: 1200 }, { mode: "bus", maxWalkDistance: 1200 }], accept: hasTransit, rank: (a, b) => a.mins - b.mins, tag: "Avoids the disruption", itineraries: 6 },
 };
+
+export function optionMatchesMode(option, mode) {
+  const spec = ROUTE_MODES[mode];
+  if (!spec) return false;
+  if (spec.walk) return option?.walkOnly === true;
+  if (spec.cycle) return !option?.walkOnly && !(option?.transitLegs || []).length;
+  return spec.accept ? spec.accept(option) : true;
+}
 
 const REALTIME = ["PCDRealTime", "PlatformCrowdDensityRealTime"];
 
@@ -209,7 +222,7 @@ export default async function handler(req, res) {
     res.status(400).json({ error: "Missing from or to (lat,lng)" });
     return;
   }
-  const spec = MODES[mode] || MODES.fast;
+  const spec = ROUTE_MODES[mode] || ROUTE_MODES.fast;
 
   try {
     if (spec.cycle) {
@@ -248,9 +261,18 @@ export default async function handler(req, res) {
         return true;
       });
 
+    const eligible = spec.accept ? normalized.filter(spec.accept) : normalized;
+    const suggestedMode = mode !== "walk" && normalized.length > 0 && eligible.length === 0 && normalized.every((option) => option.walkOnly)
+      ? "walk"
+      : null;
+    if (!eligible.length) {
+      res.status(200).json({ mode, options: [], ...(suggestedMode ? { suggestedMode } : {}) });
+      return;
+    }
+
     // Filtered before enrich(), so we don't fetch bus arrivals for options we
     // are about to throw away.
-    const { kept, dropped, lines, stations, all } = withoutAny(normalized, { lines: avoid, stations: avoidStations });
+    const { kept, dropped, lines, stations, all } = withoutAny(eligible, { lines: avoid, stations: avoidStations });
     const avoided = all.length ? { lines, stations, all, dropped, none: kept.length === 0 } : null;
     if (!kept.length) {
       // An empty list after filtering means "every way still uses the broken
@@ -279,7 +301,10 @@ export default async function handler(req, res) {
     // a live answer: serving it while claiming to avoid NSL would be the one
     // thing this feature must never do.
     const sample = withoutAny(
-      (recordedRoute.plan.itineraries || []).map((itin) => normalizeItinerary(itin, "")).filter(Boolean),
+      (recordedRoute.plan.itineraries || [])
+        .map((itin) => normalizeItinerary(itin, ""))
+        .filter(Boolean)
+        .filter((option) => !spec.accept || spec.accept(option)),
       { lines: avoid, stations: avoidStations }
     );
     const recorded = sample.kept

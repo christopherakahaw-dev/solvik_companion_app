@@ -29,19 +29,23 @@ export function NavScreen({ v }) {
   const [recenterToken, setRecenterToken] = useState(0);
   const pauseFollowing = useCallback(() => setFollowing(false), []);
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
-      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} heading={v.navHeading} dest={v.destCoord} fitRoute={false} followLocation={following} onExplore={pauseFollowing} recenterToken={recenterToken} zoomControls={false} height="100%" />
+    <div className="sv-nav-screen" style={{ position: "absolute", inset: 0 }}>
+      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} heading={v.navHeading} dest={v.destCoord} fitRoute={false} followLocation={following} onExplore={pauseFollowing} autoRecenterAfterExplore={false} showRecenterControl={false} recenterToken={recenterToken} zoomControls={false} height="100%" />
 
-      <button type="button" className={`sv-nav-follow${following ? " is-following" : ""}`} style={{ bottom: `calc(min(${v.navSheetStyle.height}px, 50%) + var(--sv-nav-bottom-gap, 0px) + 12px)`, transition: v.navSheetStyle.transition.replace("height", "bottom") }} aria-label={following ? "Following your location" : "Resume following my location"} aria-pressed={following} onClick={() => { setFollowing(true); setRecenterToken((token) => token + 1); }}>
-        <Icon name="locate-fixed" size={19} />
-      </button>
+      {!following && (
+        <button type="button" className="sv-nav-follow" style={{ bottom: `calc(min(${v.navSheetStyle.height}px, 64%) + var(--sv-nav-bottom-gap, 0px) + 12px)`, transition: v.navSheetStyle.transition.replace("height", "bottom") }} aria-label="Resume following my location" onClick={() => { setFollowing(true); setRecenterToken((token) => token + 1); }}>
+          <Icon name="locate-fixed" size={18} />
+          <span>Resume</span>
+        </button>
+      )}
       <div className="sv-nav-top" style={{ position: "absolute", left: 14, right: 14, top: 14, display: "flex", flexDirection: "column", gap: 10 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+        <div className="sv-nav-meta-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <IconButton icon="x" label="End trip" tone="plain" size="md" onClick={v.endTrip} />
           <SolvikBrand compact className="sv-nav-brand" />
           <div style={{ font: "var(--weight-bold) 12px/1 var(--font-body)", color: "var(--text-strong)", background: "var(--surface-card)", borderRadius: 999, padding: "9px 15px", boxShadow: "var(--shadow-nav)", whiteSpace: "nowrap", flex: "none" }}>{v.navStepLabel}</div>
           {v.navTrackNote && (
             <div
+              className="sv-nav-track-note"
               style={{
                 font: "var(--weight-medium) 11px/1.2 var(--font-body)",
                 color: v.navTrackTone === "warn" ? "var(--crowd-busy)" : "var(--text-muted)",
@@ -52,22 +56,6 @@ export function NavScreen({ v }) {
               {v.navTrackNote}
             </div>
           )}
-        </div>
-        <div className="sv-nav-instruction" style={{ background: "var(--accent)", color: "var(--text-on-accent)", borderRadius: "var(--radius-card)", padding: "15px 16px", boxShadow: "var(--shadow-nav)", display: "grid", gridTemplateColumns: "36px minmax(0, 1fr)", alignItems: "flex-start", gap: 10 }}>
-          <div style={{ flex: "none", width: 36, height: 36, borderRadius: 999, background: "rgba(255,255,255,.2)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Icon name={v.navIcon} size={21} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="sv-nav-title" style={{ font: "var(--weight-heavy) 19px/1.25 var(--font-display)", letterSpacing: "-.02em", textWrap: "pretty" }}>{v.navTitle}</div>
-            <div className="sv-nav-detail" style={{ font: "var(--type-caption)", opacity: 0.74, marginTop: 5, textWrap: "pretty" }}>{v.navDetail}</div>
-          </div>
-          <div style={{ gridColumn: 2, display: "flex", gap: 6, alignItems: "baseline" }}>
-            <div className="sv-nav-countdown" style={{ font: "var(--weight-heavy) 20px/1 var(--font-numeric)", fontVariantNumeric: "tabular-nums" }}>{v.navCountdown}</div>
-            <div style={{ font: "var(--weight-regular) 10px/1 var(--font-body)", opacity: 0.68, marginTop: 5 }}>to go</div>
-          </div>
-        </div>
-        <div style={{ height: 5, borderRadius: 999, background: "var(--surface-card)", boxShadow: "var(--shadow-nav)", overflow: "hidden" }}>
-          <div style={v.navProgressStyle} />
         </div>
       </div>
 
@@ -91,14 +79,30 @@ export function NavScreen({ v }) {
         onClickCapture={(event) => {
           if (suppressGestureClick.current) { event.preventDefault(); event.stopPropagation(); suppressGestureClick.current = false; }
         }}>
-        <div className="sv-nav-grab" role="button" tabIndex={0} aria-label="Expand or collapse navigation" aria-expanded={v.navSheetExpanded} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); v.navSheetCycle(); } }} onPointerDown={v.navSheetDrag} style={v.navGrabStyle}>
-          <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)", margin: "0 auto" }} />
+        <div className="sv-nav-grab" role="button" tabIndex={0} aria-label={v.navSheetExpanded ? "Hide trip steps" : "Show trip steps"} aria-expanded={v.navSheetExpanded} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); v.navSheetCycle(); } }} onPointerDown={v.navSheetDrag} style={v.navGrabStyle}>
+          <div className="sv-nav-grab-handle" />
+          <span>{v.navSheetExpanded ? "Hide trip steps" : "Trip steps"}</span>
+          <Icon name={v.navSheetExpanded ? "chevron-down" : "chevron-up"} size={15} />
         </div>
-        <div className="sv-nav-summary" onPointerDown={v.navSheetCompact ? v.navSheetDrag : undefined} style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
-          <div className="sv-nav-eta" style={{ font: "var(--weight-heavy) 26px/1 var(--font-numeric)", fontVariantNumeric: "tabular-nums", color: "var(--text-strong)" }}>{v.navEta}</div>
-          <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>{v.navSheetCompact ? <span className="sv-nav-compact-stage"><Icon name={v.navIcon} size={15} />{v.navTitle}</span> : v.navRemainLabel}</div>
+        <div className="sv-nav-summary" onPointerDown={v.navSheetCompact ? v.navSheetDrag : undefined}>
+          <div className="sv-nav-current-step">
+            <div className="sv-nav-current-icon"><Icon name={v.navIcon} size={19} /></div>
+            <div className="sv-nav-current-copy">
+              <div className="sv-nav-title">{v.navTitle}</div>
+              <div className="sv-nav-detail">{v.navDetail}</div>
+            </div>
+            <div className="sv-nav-current-countdown">
+              <strong>{v.navCountdown}</strong>
+              <span>to go</span>
+            </div>
+          </div>
+          <div className="sv-nav-current-meta">
+            <span><Icon name="clock" size={13} />{v.navRemainLabel}</span>
+            <span>Arrive {v.navEta}</span>
+          </div>
+          <div className="sv-nav-progress-track"><div style={v.navProgressStyle} /></div>
         </div>
-        <div ref={v.setStepsRef} onScroll={v.onStepsScroll} onPointerDown={v.stepsDragStart} style={v.stepsPagerStyle}>
+        <div ref={v.setStepsRef} className="sv-nav-steps" onScroll={v.onStepsScroll} onPointerDown={v.stepsDragStart} style={v.stepsPagerStyle}>
           {v.navList.map((st, i) => (
             <div key={i} style={st.cardStyle}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
@@ -114,17 +118,13 @@ export function NavScreen({ v }) {
                 <div style={st.laneWrapStyle}>
                   <div style={st.laneStyle} />
                   <div style={st.laneFillStyle} />
-                  {st.showVehicle && (
-                    <div style={st.vehicleStyle}>
-                      <Icon name={st.icon} size={15} />
-                    </div>
-                  )}
                   {st.stopList.map((sp, si) => (
                     <div key={si} style={sp.rowStyle}>
                       <div style={{ width: 26, flex: "none", display: "flex", justifyContent: "center" }}>
                         <div style={sp.dotStyle} />
                       </div>
                       <div style={sp.style}>{sp.name}</div>
+                      <span style={sp.statusStyle}>{sp.status}</span>
                     </div>
                   ))}
                 </div>
@@ -132,10 +132,18 @@ export function NavScreen({ v }) {
             </div>
           ))}
         </div>
-        <div style={v.navDotsWrapStyle}>
-          {v.navDots.map((d, i) => (
-            <span key={i} style={d.style} />
-          ))}
+        <div className="sv-nav-pager-controls" style={v.navDotsWrapStyle}>
+          <button type="button" aria-label="Previous trip step" disabled={!v.navHasPreviousStep} onClick={v.navPreviousStep}>
+            <Icon name="chevron-left" size={16} />
+          </button>
+          <div className="sv-nav-dots" aria-label="Trip steps">
+            {v.navDots.map((d, i) => (
+              <button key={i} type="button" aria-label={d.label} aria-current={d.current ? "step" : undefined} onClick={d.pick} style={d.style} />
+            ))}
+          </div>
+          <button type="button" aria-label="Next trip step" disabled={!v.navHasNextStep} onClick={v.navNextStep}>
+            <Icon name="chevron-right" size={16} />
+          </button>
         </div>
         <div className="sv-nav-actions" style={{ display: "flex", gap: 10 }}>
           <Button className="sv-nav-report" variant="secondary" size="md" fullWidth iconRight="megaphone" onClick={v.goReport}>
