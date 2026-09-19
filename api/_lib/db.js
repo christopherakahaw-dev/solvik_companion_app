@@ -71,7 +71,20 @@ export function initDatabase(dbPath = getDatabasePath()) {
 
 export function getDb() {
   if (!dbInstance) {
-    dbInstance = initDatabase();
+    try {
+      dbInstance = initDatabase();
+    } catch (error) {
+      // Vercel functions run on a read-only deployment filesystem. SQLite is
+      // suitable for local development, but production account sync needs a
+      // database adapter backed by a durable external service.
+      if (/readonly|read-only|SQLITE_READONLY/i.test(String(error?.message || error))) {
+        throw new Error(
+          "Account sync is unavailable because this deployment has no writable persistent database. " +
+          "Continue as a guest, or connect this app to a durable database service."
+        );
+      }
+      throw error;
+    }
   }
   return dbInstance;
 }

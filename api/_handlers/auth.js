@@ -106,6 +106,8 @@ export default async function handler(req, res) {
       ? 401
       : message.includes("already taken") || message.includes("between 3 and 30") || message.includes("at least 6")
       ? 400
+      : message.includes("Account sync is unavailable")
+      ? 503
       : 500;
     res.status(status).json({ error: message });
   }
