@@ -96,30 +96,6 @@ export function Intro({ v }) {
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingTop: 26 }}>
         {v.introS0 && (
-          <div style={{ animation: "sv-rise 420ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 38px/1.1 var(--font-display)", letterSpacing: "-.03em", color: "var(--text-strong)", textWrap: "pretty" }}>
-              Your commute, minus the guesswork
-            </div>
-            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 14, textWrap: "pretty" }}>
-              Tell Solvik who you are and where you go. It then watches your lines, warns you before you leave, and routes around the crush.
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 11, marginTop: 28 }}>
-              {v.introPromises.map((p, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: 12, padding: "14px 15px", borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
-                  <span style={{ flex: "none", width: 34, height: 34, borderRadius: 999, background: "var(--accent-soft)", color: "var(--text-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon name={p.icon} size={17} />
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)" }}>{p.title}</span>
-                    <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 3, textWrap: "pretty" }}>{p.detail}</span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {v.introS1 && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
             <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose your style</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Solvik will open this route and explain why it fits this commuter better than the alternatives.</div>
@@ -132,11 +108,10 @@ export function Intro({ v }) {
                   <span style={{ flex: 1, minWidth: 0, textAlign: "left" }}>
                     <span style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap" }}>
                       <span style={{ font: "var(--type-body-strong)" }}>{r.label}</span>
-                      <span style={{ padding: "3px 7px", borderRadius: 999, background: r.id === "fixed" ? "var(--accent)" : "var(--sand-200)", color: r.id === "fixed" ? "var(--text-on-accent)" : "var(--text-muted)", font: "var(--weight-bold) 9px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase" }}>{r.badge}</span>
                     </span>
                     <span style={styleText(r.subStyle)}>{r.sub}</span>
                     {r.route ? <span style={{ display: "block", font: "var(--weight-bold) 11.5px/1.3 var(--font-body)", color: "var(--text-accent)", marginTop: 7 }}>{r.route}</span> : null}
-                    <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: r.route ? 2 : 6 }}>{r.schedule}</span>
+                    {r.schedule ? <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: r.route ? 2 : 6 }}>{r.schedule}</span> : null}
                   </span>
                   <span style={styleText(r.checkStyle)}>
                     <Icon name="check" size={14} />
@@ -147,7 +122,7 @@ export function Intro({ v }) {
           </div>
         )}
 
-        {v.introS2 && (
+        {v.introS1 && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
             <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.introJourney?.name}&apos;s journey</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>This is the door-to-door journey Solvik will plan immediately.</div>
@@ -171,7 +146,7 @@ export function Intro({ v }) {
                     <div style={{ marginTop: 6 }}>
                       <PlacePicker
                         value={null}
-                        displayValue={v.introJourney.from}
+                        displayValue={v.introJourney.from === "-" ? "" : v.introJourney.from}
                         clearOnFocus
                         placeholder="Search origin location…"
                         icon="map-pin"
@@ -213,7 +188,7 @@ export function Intro({ v }) {
                     <div style={{ marginTop: 6 }}>
                       <PlacePicker
                         value={null}
-                        displayValue={v.introJourney.to}
+                        displayValue={v.introJourney.to === "-" ? "" : v.introJourney.to}
                         clearOnFocus
                         placeholder="Search destination…"
                         icon="flag"
@@ -254,37 +229,32 @@ export function Intro({ v }) {
                 <Icon name="clock-3" size={17} />
                 <span>{v.introJourney.schedule}</span>
               </div>
-              {(v.introJourney.isFixed || v.introHasCustomRoute) && (
+              {v.introJourney.hasCalculatedTravel && (
                 <div style={{ display: "flex", alignItems: "center", gap: 6, font: "var(--type-caption)", color: "var(--text-accent)", marginTop: 4, marginLeft: 26 }}>
                   <span>{v.introCalculatingTravel ? "Calculating travel time…" : `Estimated ${v.introTravelMins} mins travel time`}</span>
                 </div>
               )}
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 10, font: "var(--type-caption)", color: "var(--text-muted)" }}>
-                <Icon name="route" size={16} style={{ flex: "none", marginTop: 1 }} />
-                <span>{v.introJourney.expected}</span>
-              </div>
+              {v.introJourney.expected ? (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 10, font: "var(--type-caption)", color: "var(--text-muted)" }}>
+                  <Icon name="route" size={16} style={{ flex: "none", marginTop: 1 }} />
+                  <span>{v.introJourney.expected}</span>
+                </div>
+              ) : null}
             </div>}
-            {v.introJourney && <div style={{ marginTop: 12, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--accent-soft)", color: "var(--text-body)", font: "var(--type-caption)", textWrap: "pretty" }}><strong style={{ color: "var(--text-accent)" }}>Why this fit:</strong> {v.introJourney.fit}</div>}
-            {v.introJourney && !v.introJourney.featured && <div style={{ marginTop: 10, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--sand-100)", color: "var(--text-muted)", font: "var(--type-caption)", textWrap: "pretty" }}><strong>Honest limitation:</strong> {v.introJourney.limitation}</div>}
+            {v.introJourney && v.introJourney.fit && !v.introJourney.isFixed ? (
+              <div style={{ marginTop: 12, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--accent-soft)", color: "var(--text-body)", font: "var(--type-caption)", textWrap: "pretty" }}>
+                <strong style={{ color: "var(--text-accent)" }}>Why this fit:</strong> {v.introJourney.fit}
+              </div>
+            ) : null}
+            {v.introJourney && !v.introJourney.featured && (
+              <div style={{ marginTop: 10, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--sand-100)", color: "var(--text-muted)", font: "var(--type-caption)", textWrap: "pretty" }}>
+                <strong>Honest limitation:</strong> {v.introJourney.limitation}
+              </div>
+            )}
           </div>
         )}
 
-        {v.introS3 && (
-          <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.introSummaryTitle}</div>
-            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>You can change any of this later in Plan.</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 22 }}>
-              {v.introSummary.map((l, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "14px 15px", borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
-                  <span style={{ flex: "none", width: 26, height: 26, borderRadius: 999, background: "var(--accent)", color: "var(--text-on-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Icon name="check" size={14} />
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, font: "var(--type-body)", color: "var(--text-body)", textWrap: "pretty" }}>{l.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+
       </div>
 
       <div style={{ flex: "none", display: "flex", flexDirection: "column", gap: 9, paddingTop: 14 }}>
