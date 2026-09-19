@@ -2477,7 +2477,7 @@ export class AppLogic extends Component {
     const rolePill = (on) =>
       "display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:var(--radius-card);cursor:pointer;font:var(--font-body);transition:background .15s,border-color .15s;" +
       (on ? "background:var(--accent-soft);border:1px solid var(--accent);color:var(--text-strong);" : "background:var(--surface-card);border:1px solid var(--border-card);color:var(--text-strong);");
-    const total = 2;
+    const total = isFixed ? 2 : 1;
     const journeyTitle = isFixed
       ? (customFrom && customTo ? `${customFrom.name} → ${customTo.name}` : "Fixed Schedule")
       : (selected?.route.label || selected?.name || "Your style");
@@ -2486,16 +2486,18 @@ export class AppLogic extends Component {
       ? (hasCalculatedTravel ? `Leave ${leaveTime} arrive by ${arriveByTime} , Every Weekday` : `Leave - arrive by ${arriveByTime} , Every Weekday`)
       : selected?.route.schedule;
 
+    const dotIndices = isFixed ? [0, 1] : [0];
+
     return {
       isIntro: sc === "intro",
-      introS0: step === 0, introS1: step === 1,
-      introCanBack: step > 0,
-      introDots: [0, 1].map((idx) => ({
+      introS0: step === 0, introS1: step === 1 && isFixed,
+      introCanBack: step > 0 && isFixed,
+      introDots: dotIndices.map((idx) => ({
         style: { width: idx === step ? 18 : 6, height: 6, borderRadius: 999, background: idx <= step ? "var(--accent)" : "var(--sand-300)", transition: "width 220ms cubic-bezier(.2,.7,.3,1),background-color 220ms linear" },
       })),
       introRoles: personaList().map((p) => ({
         id: p.id,
-        label: p.id === "fixed" ? "Fixed Schedule" : p.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
+        label: p.name,
         sub: p.blurb,
         icon: scenarioIcon[p.id],
         route: p.route.label,
@@ -2503,10 +2505,11 @@ export class AppLogic extends Component {
         badge: null,
         style: rolePill(selectedId === p.id),
         iconStyle: "flex:none;width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;" + (selectedId === p.id ? "background:var(--accent);color:var(--text-on-accent);" : "background:var(--accent-soft);color:var(--text-accent);"),
-        subStyle: "display:block;font:var(--type-caption);color:var(--text-muted);margin-top:3px",
+        subStyle: "display:block;font:var(--type-caption);color:var(--text-muted);margin-top:3px;white-space:pre-line",
         checkStyle: "flex:none;width:24px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:center;" + (selectedId === p.id ? "background:var(--accent);color:var(--text-on-accent);" : "background:transparent;color:transparent;"),
         toggle: () => this.setState({
           introScenario: p.id,
+          introStep: 0,
           introCustomFrom: null,
           introCustomTo: null,
           introArriveByTime: p.route.arriveBy != null
@@ -2519,7 +2522,7 @@ export class AppLogic extends Component {
       })),
       introJourney: selected ? {
         id: selected.id,
-        name: selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
+        name: selected.name,
         from: fromName,
         to: toName,
         schedule: scheduleText,
@@ -2544,7 +2547,7 @@ export class AppLogic extends Component {
       introCta: s.introSaving
         ? "Preparing route…"
         : step === 0
-          ? (selected ? `Continue with ${selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible"}` : "Choose one to continue")
+          ? (selected ? (selected.id === "fixed" ? "Continue with Fixed Schedule" : `Continue with ${selected.name}`) : "Choose one to continue")
           : (isFixed && (!customFrom || !customTo) ? "Set locations to continue" : "Show my route"),
       introError: s.introError || "",
       introCanSkip: false,
@@ -2552,8 +2555,8 @@ export class AppLogic extends Component {
       introDisabled: Boolean(s.introSaving) || (step === 0 && !selected) || (step === 1 && isFixed && (!customFrom || !customTo)),
       introNext: async () => {
         if (step === 0 && !selected) return;
+        if (step === 0 && isFixed) return this.setState({ introStep: 1 });
         if (step === 1 && isFixed && (!customFrom || !customTo)) return;
-        if (step < total - 1) return this.setState({ introStep: step + 1 });
         const persona = selected || personaOf(DEFAULT_PERSONA);
         const schedulePlace = (place, end) => {
           if (!place) return null;

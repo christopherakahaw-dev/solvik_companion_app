@@ -5,20 +5,23 @@ import { loadPreferences, savePreferences } from '../src/lib/storage.js';
 
 test('PERSONAS have been updated to the requested travel style names', () => {
   assert.equal(PERSONAS.fixed.name, 'Fixed Schedule');
-  assert.equal(PERSONAS.flexible.name, 'Flexible and Multi-Modal');
+  assert.equal(PERSONAS.flexible.name, 'Flexible and Multi-Modal (Default)');
   assert.equal(PERSONAS.stepFree.name, 'Easy and Accessible');
 });
 
-test('PERSONAS route labels and schedules match user requirements', () => {
+test('PERSONAS blurbs, route labels and schedules match user requirements', () => {
+  assert.equal(PERSONAS.fixed.blurb, 'Same trip everyday. Notify me when my route gets disrupted.');
   assert.equal(PERSONAS.fixed.route.label, '');
-  assert.equal(PERSONAS.fixed.route.schedule, '');
+  assert.equal(PERSONAS.fixed.route.schedule, 'Defaults the fastest routes available');
   assert.equal(PERSONAS.fixed.fit, '');
 
+  assert.equal(PERSONAS.flexible.blurb, "I'm okay with transfers along my journey.");
   assert.equal(PERSONAS.flexible.route.label, '');
-  assert.equal(PERSONAS.flexible.route.schedule, 'Flexible Journeys');
+  assert.equal(PERSONAS.flexible.route.schedule, 'Defaults the most comfortable routes with least crowd levels.');
 
+  assert.equal(PERSONAS.stepFree.blurb, 'Suitable for the Elderly and people with mobility issues. I need lifts and shelter.');
   assert.equal(PERSONAS.stepFree.route.label, '');
-  assert.equal(PERSONAS.stepFree.route.schedule, 'Accessible routes tailored to your needs');
+  assert.equal(PERSONAS.stepFree.route.schedule, 'Defaults the routes with the least walking.');
 });
 
 test('loadPreferences parses and preserves travelStyleSelected', () => {
