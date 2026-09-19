@@ -152,3 +152,68 @@ test("returning user with travel style saved preserves travelStyleSelected on lo
   assert.equal(check.preferences.routingPreferences.travelStyle, "stepFree");
   assert.equal(check.preferences.routingPreferences.stepFree, true);
 });
+
+test("new user flow: registers with clean preferences, completes style selection, and subsequent login skips intro", () => {
+  // 1. Initial registration starts with travelStyleSelected: false
+  const initialPrefs = {
+    routingPreferences: {
+      stepFree: false,
+      lessWalking: false,
+      avoidCrowds: false,
+      studentFare: false,
+      routineCommute: false,
+      showSavedPlaces: true,
+      persona: null,
+      travelStyle: null,
+      travelStyleSelected: false,
+      scenario: null,
+    },
+    savedPlaces: { home: null, work: null, school: null },
+  };
+  const { token, user } = registerUser("new_sg_user", "securePass123", initialPrefs);
+  assert.ok(user.id);
+  assert.equal(user.username, "new_sg_user");
+
+  // Verify DB state for new user: travelStyleSelected is false
+  const freshSession = getUserByToken(token);
+  assert.equal(freshSession.preferences.routingPreferences.travelStyleSelected, false);
+
+  // 2. User completes style selection with Fixed Schedule and custom commute places
+  const customHome = { name: "Tampines St 21", address: "Tampines, Singapore", ll: [1.3532, 103.9456] };
+  const customWork = { name: "Raffles Place Tower", address: "Raffles Place, Singapore", ll: [1.2838, 103.8515] };
+  const completedPrefs = {
+    routingPreferences: {
+      ...initialPrefs.routingPreferences,
+      persona: "fixed",
+      travelStyle: "fixed",
+      travelStyleSelected: true,
+      routineCommute: true,
+      leaveMins: 460, // 07:40
+      arriveBy: 525,  // 08:45
+      commuteMins: 460,
+    },
+    savedPlaces: {
+      home: { ...customHome, source: "onemap", verified: true },
+      work: { ...customWork, source: "onemap", verified: true },
+      school: null,
+    },
+  };
+
+  saveUserPreferences(token, completedPrefs);
+
+  // 3. User logs in later: preferences are retrieved directly from SQLite database
+  const returningLogin = loginUser("new_sg_user", "securePass123");
+  assert.equal(returningLogin.preferences.routingPreferences.travelStyleSelected, true);
+  assert.equal(returningLogin.preferences.routingPreferences.travelStyle, "fixed");
+  assert.equal(returningLogin.preferences.routingPreferences.arriveBy, 525);
+  assert.equal(returningLogin.preferences.savedPlaces.home.name, "Tampines St 21");
+  assert.equal(returningLogin.preferences.savedPlaces.work.name, "Raffles Place Tower");
+
+  // In appLogic.jsx: hasSelectedStyle will evaluate to true
+  const hasSelectedStyle = Boolean(
+    returningLogin.preferences.routingPreferences?.travelStyleSelected === true ||
+    returningLogin.preferences?.travelStyleSelected === true
+  );
+  assert.equal(hasSelectedStyle, true);
+});
+

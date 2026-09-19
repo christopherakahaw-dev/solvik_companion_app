@@ -134,9 +134,9 @@ export class AppLogic extends Component {
     introCustomFrom: null,
     introCustomTo: null,
     introArriveByTime: "08:45",
-    introTravelMins: 65,
-    introLeaveTime: "07:40",
-    introExpectedRoute: "EWL with the walk at both ends",
+    introTravelMins: null,
+    introLeaveTime: null,
+    introExpectedRoute: "",
     introCalculatingTravel: false,
     rep: "pick", repType: null, sev: 1, rewardRedemptions: loadStored(KEYS.rewardRedemptions, []), toast: null, tick: 0,
     planned: { works: [], roadWorks: [], busChanges: [], pending: true, error: null },
@@ -181,6 +181,24 @@ export class AppLogic extends Component {
         this.setState({ userHeading: heading });
       }
     });
+
+    if (this.state.authUser?.token) {
+      getMeApi(this.state.authUser.token).then((res) => {
+        if (res?.preferences && typeof res.preferences === "object") {
+          const remotePrefs = res.preferences;
+          if (remotePrefs.routingPreferences) {
+            this.setState((prev) => ({
+              routingPreferences: { ...prev.routingPreferences, ...remotePrefs.routingPreferences },
+              savedPlaces: remotePrefs.savedPlaces ? { ...prev.savedPlaces, ...remotePrefs.savedPlaces } : prev.savedPlaces,
+            }));
+          }
+        }
+      }).catch((err) => {
+        if (err?.message && (err.message.includes("401") || err.message.includes("expired") || err.message.includes("Not authenticated"))) {
+          this.authLogout();
+        }
+      });
+    }
   }
 
   componentWillUnmount() {
@@ -243,29 +261,24 @@ export class AppLogic extends Component {
       store(KEYS.authUser, user);
       store(KEYS.isGuest, false);
 
-      // Hydrate remote preferences if user has them saved
+      // Hydrate remote preferences if user has them saved in database
       let nextPrefs = this.state.routingPreferences;
       let nextPlaces = this.state.savedPlaces;
       const remotePrefs = res.preferences || user.preferences;
       if (remotePrefs && typeof remotePrefs === "object") {
         if (remotePrefs.routingPreferences) {
-          nextPrefs = { ...nextPrefs, ...remotePrefs.routingPreferences };
+          nextPrefs = { ...loadPreferences(), ...remotePrefs.routingPreferences };
           store(KEYS.preferences, nextPrefs);
         }
         if (remotePrefs.savedPlaces) {
-          nextPlaces = { ...nextPlaces, ...remotePrefs.savedPlaces };
+          nextPlaces = { ...loadSavedPlaces(), ...remotePrefs.savedPlaces };
           saveSavedPlaces(nextPlaces);
         }
       }
 
       const hasSelectedStyle = Boolean(
         remotePrefs?.routingPreferences?.travelStyleSelected === true ||
-        remotePrefs?.travelStyleSelected === true ||
-        remotePrefs?.routingPreferences?.travelStyle ||
-        remotePrefs?.routingPreferences?.persona ||
-        nextPrefs?.travelStyleSelected === true ||
-        nextPrefs?.travelStyle ||
-        nextPrefs?.persona
+        remotePrefs?.travelStyleSelected === true
       );
       if (hasSelectedStyle) {
         store(ONBOARDED_KEY, 1);
@@ -278,6 +291,7 @@ export class AppLogic extends Component {
         authError: null,
         routingPreferences: nextPrefs,
         savedPlaces: nextPlaces,
+        introStep: 0,
         screen: nextScreen,
       });
       this.flash(`Signed in as ${user.username}`);
@@ -291,34 +305,42 @@ export class AppLogic extends Component {
   authRegister = async (username, password) => {
     this.setState({ authBusy: true, authError: null });
     try {
-      const currentPayload = {
-        routingPreferences: this.state.routingPreferences,
-        savedPlaces: this.state.savedPlaces,
+      const initialPrefs = {
+        routingPreferences: {
+          stepFree: false,
+          lessWalking: false,
+          avoidCrowds: false,
+          studentFare: false,
+          routineCommute: false,
+          showSavedPlaces: true,
+          persona: null,
+          travelStyle: null,
+          travelStyleSelected: false,
+          scenario: null,
+        },
+        savedPlaces: { home: null, work: null, school: null },
       };
-      const res = await registerUserApi(username, password, currentPayload);
+      const res = await registerUserApi(username, password, initialPrefs);
       const user = {
         ...res.user,
         token: res.token,
-        preferences: res.preferences || currentPayload,
+        preferences: res.preferences || initialPrefs,
       };
       store(KEYS.authUser, user);
       store(KEYS.isGuest, false);
+      store(KEYS.preferences, initialPrefs.routingPreferences);
+      saveSavedPlaces(initialPrefs.savedPlaces);
 
-      const hasSelectedStyle = Boolean(
-        this.state.routingPreferences?.travelStyleSelected === true ||
-        this.state.routingPreferences?.travelStyle ||
-        this.state.routingPreferences?.persona
-      );
-      if (hasSelectedStyle) {
-        store(ONBOARDED_KEY, 1);
-      }
-      const nextScreen = hasSelectedStyle ? "map" : "intro";
       this.setState({
         authUser: user,
         isGuest: false,
         authBusy: false,
         authError: null,
-        screen: nextScreen,
+        routingPreferences: initialPrefs.routingPreferences,
+        savedPlaces: initialPrefs.savedPlaces,
+        introStep: 0,
+        introScenario: null,
+        screen: "intro",
       });
       this.flash(`Account created! Welcome, ${user.username}`);
       return user;
@@ -375,35 +397,45 @@ export class AppLogic extends Component {
   };
 
   recalculateIntroJourney = async (from, to, arriveByTime) => {
-    const persona = personaOf(this.state.introScenario || DEFAULT_PERSONA);
-    const curFrom = from || this.state.introCustomFrom || persona.route.from;
-    const curTo = to || this.state.introCustomTo || persona.route.to;
-    const curArriveBy = arriveByTime || this.state.introArriveByTime || "08:45";
+    const curFrom = from !== undefined ? from : this.state.introCustomFrom;
+    const curTo = to !== undefined ? to : this.state.introCustomTo;
+    const curArriveBy = arriveByTime !== undefined ? arriveByTime : (this.state.introArriveByTime || "08:45");
 
-    let travelMins = this.state.introTravelMins || 65;
-    let expected = this.state.introExpectedRoute || PERSONAS.fixed.route.expected;
+    if (!curFrom?.ll || !curTo?.ll || !curArriveBy) {
+      this.setState({
+        introCustomFrom: curFrom || null,
+        introCustomTo: curTo || null,
+        introArriveByTime: curArriveBy,
+        introTravelMins: null,
+        introLeaveTime: null,
+        introExpectedRoute: "",
+        introCalculatingTravel: false,
+      });
+      return;
+    }
 
-    if (curFrom?.ll && curTo?.ll) {
-      const isDefault = Math.abs(curFrom.ll[0] - 1.3531) < 0.005 && Math.abs(curTo.ll[0] - 1.2841) < 0.005;
-      if (isDefault) {
-        travelMins = 65;
-        expected = "EWL with the walk at both ends";
+    this.setState({
+      introCustomFrom: curFrom,
+      introCustomTo: curTo,
+      introArriveByTime: curArriveBy,
+      introCalculatingTravel: true,
+    });
+
+    let travelMins = 45;
+    let expected = "Fastest transit route";
+
+    try {
+      const options = await getTripOptions(curFrom.ll, curTo.ll, "fast", curTo.name);
+      if (options && options.length > 0 && options[0].mins) {
+        travelMins = options[0].mins;
+        expected = options[0].legsText || options[0].summary || "Fastest transit route";
       } else {
-        this.setState({ introCalculatingTravel: true });
-        try {
-          const options = await getTripOptions(curFrom.ll, curTo.ll, "fast", curTo.name);
-          if (options && options.length > 0 && options[0].mins) {
-            travelMins = options[0].mins;
-            expected = options[0].legsText || options[0].summary || "Fastest transit route";
-          } else {
-            const dist = metresBetween(curFrom.ll, curTo.ll);
-            travelMins = Math.max(15, Math.round(dist / 400 + 8));
-          }
-        } catch {
-          const dist = metresBetween(curFrom.ll, curTo.ll);
-          travelMins = Math.max(15, Math.round(dist / 400 + 8));
-        }
+        const dist = metresBetween(curFrom.ll, curTo.ll);
+        travelMins = Math.max(15, Math.round(dist / 400 + 8));
       }
+    } catch {
+      const dist = metresBetween(curFrom.ll, curTo.ll);
+      travelMins = Math.max(15, Math.round(dist / 400 + 8));
     }
 
     const [arrH, arrM] = curArriveBy.split(":").map((n) => parseInt(n, 10) || 0);
@@ -2454,38 +2486,37 @@ export class AppLogic extends Component {
     const selectedId = s.introScenario;
     const selected = selectedId ? personaOf(selectedId) : null;
     const isFixed = selected?.id === "fixed";
-    const customFrom = s.introCustomFrom || selected?.route.from || PERSONAS.fixed.route.from;
-    const customTo = s.introCustomTo || selected?.route.to || PERSONAS.fixed.route.to;
+    const customFrom = s.introCustomFrom || (isFixed ? null : selected?.route.from);
+    const customTo = s.introCustomTo || (isFixed ? null : selected?.route.to);
+    const fromName = customFrom?.name || "-";
+    const toName = customTo?.name || "-";
     const arriveByTime = s.introArriveByTime || "08:45";
-    const leaveTime = s.introLeaveTime || "07:40";
-    const travelMins = s.introTravelMins != null ? s.introTravelMins : 65;
-    const expected = s.introExpectedRoute || (isFixed ? PERSONAS.fixed.route.expected : selected?.route.expected);
+    const travelMins = s.introTravelMins;
+    const leaveTime = s.introLeaveTime;
+    const hasCalculatedTravel = Boolean(customFrom?.ll && customTo?.ll && arriveByTime && travelMins != null);
+    const expected = s.introExpectedRoute || (isFixed ? "" : selected?.route.expected);
     const hasCustomRoute = Boolean(s.introCustomFrom || s.introCustomTo);
 
-    const scenarioIcon = { fixed: "clock-3", flexible: "bike", stepFree: "accessibility" };
+    const scenarioIcon = { fixed: "clock", flexible: "shuffle", stepFree: "accessibility" };
     const rolePill = (on) =>
       "display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:var(--radius-card);cursor:pointer;font:var(--font-body);transition:background .15s,border-color .15s;" +
       (on ? "background:var(--accent-soft);border:1px solid var(--accent);color:var(--text-strong);" : "background:var(--surface-card);border:1px solid var(--border-card);color:var(--text-strong);");
-    const total = 4;
-    const journeyTitle = isFixed ? `${customFrom.name} → ${customTo.name}` : (selected?.route.label || selected?.name || "Your style");
-    const summary = selected ? [
-      { text: `${journeyTitle} is saved as the journey Solvik will open first.` },
-      { text: selected.fit },
-      { text: selected.id === "fixed" ? "Solvik stays quiet for minor delays and interrupts only when the impact reaches 15 minutes." : selected.limitation },
-      { text: "Live conditions may revise the recommendation. Any issue shown is tied to this route and marked on the map." },
-    ] : [];
+    const total = 2;
+    const journeyTitle = isFixed
+      ? (customFrom && customTo ? `${customFrom.name} → ${customTo.name}` : "Fixed Schedule")
+      : (selected?.route.label || selected?.name || "Your style");
+
+    const scheduleText = isFixed
+      ? (hasCalculatedTravel ? `Leave ${leaveTime} arrive by ${arriveByTime} , Every Weekday` : `Leave - arrive by ${arriveByTime} , Every Weekday`)
+      : selected?.route.schedule;
+
     return {
       isIntro: sc === "intro",
-      introS0: step === 0, introS1: step === 1, introS2: step === 2, introS3: step === 3,
-      introCanBack: true,
-      introDots: [0, 1, 2, 3].map((idx) => ({
+      introS0: step === 0, introS1: step === 1,
+      introCanBack: step > 0,
+      introDots: [0, 1].map((idx) => ({
         style: { width: idx === step ? 18 : 6, height: 6, borderRadius: 999, background: idx <= step ? "var(--accent)" : "var(--sand-300)", transition: "width 220ms cubic-bezier(.2,.7,.3,1),background-color 220ms linear" },
       })),
-      introPromises: [
-        { icon: "route", title: "A real door-to-door route", detail: "The walk at both ends is part of the journey, not hidden." },
-        { icon: "triangle-alert", title: "Issues where they happen", detail: "Relevant disruptions and lift faults appear on the route map." },
-        { icon: "message-circle", title: "A recommendation with reasons", detail: "Every alternative says why it fits you less well." },
-      ],
       introRoles: personaList().map((p) => ({
         id: p.id,
         label: p.id === "fixed" ? "Fixed Schedule" : p.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
@@ -2493,40 +2524,37 @@ export class AppLogic extends Component {
         icon: scenarioIcon[p.id],
         route: p.route.label,
         schedule: p.route.schedule,
-        badge: p.featured ? "Full journey demo" : "Preference preview",
+        badge: null,
         style: rolePill(selectedId === p.id),
         iconStyle: "flex:none;width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;" + (selectedId === p.id ? "background:var(--accent);color:var(--text-on-accent);" : "background:var(--accent-soft);color:var(--text-accent);"),
         subStyle: "display:block;font:var(--type-caption);color:var(--text-muted);margin-top:3px",
         checkStyle: "flex:none;width:24px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:center;" + (selectedId === p.id ? "background:var(--accent);color:var(--text-on-accent);" : "background:transparent;color:transparent;"),
         toggle: () => this.setState({
           introScenario: p.id,
-          // Each persona begins with its own meaningful journey. Any previous
-          // custom endpoints belong to the prior choice, not this commuter.
           introCustomFrom: null,
           introCustomTo: null,
           introArriveByTime: p.route.arriveBy != null
             ? `${String(Math.floor(p.route.arriveBy / 60)).padStart(2, "0")}:${String(p.route.arriveBy % 60).padStart(2, "0")}`
             : "08:45",
-          introTravelMins: p.id === "fixed" ? 65 : null,
-          introLeaveTime: `${String(Math.floor(p.route.leaveMins / 60)).padStart(2, "0")}:${String(p.route.leaveMins % 60).padStart(2, "0")}`,
-          introExpectedRoute: p.route.expected,
+          introTravelMins: null,
+          introLeaveTime: null,
+          introExpectedRoute: "",
         }),
       })),
       introJourney: selected ? {
         id: selected.id,
         name: selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
-        from: customFrom.name,
-        to: customTo.name,
-        schedule: isFixed ? `Leave ${leaveTime} arrive by ${arriveByTime} , Every Weekday` : selected.route.schedule,
-        expected: isFixed || hasCustomRoute ? expected : selected.route.expected,
-        fit: selected.fit,
+        from: fromName,
+        to: toName,
+        schedule: scheduleText,
+        expected: isFixed ? (hasCalculatedTravel ? expected : "") : selected.route.expected,
+        fit: isFixed ? "" : selected.fit,
         limitation: selected.limitation,
         featured: !!selected.featured,
         isFixed,
+        hasCalculatedTravel,
         canEditLocations: true,
       } : null,
-      introSummaryTitle: selected ? `${journeyTitle} is ready` : "Choose a journey first",
-      introSummary: summary,
       introCustomFrom: customFrom,
       introCustomTo: customTo,
       introArriveByTime: arriveByTime,
@@ -2537,28 +2565,30 @@ export class AppLogic extends Component {
       setIntroCustomFrom: this.setIntroCustomFrom,
       setIntroCustomTo: this.setIntroCustomTo,
       setIntroArriveBy: this.setIntroArriveBy,
-      introCta: s.introSaving ? "Preparing route…" : ["Choose your style", selected ? `Continue with ${selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible"}` : "Choose one to continue", "Review this setup", "Show my route"][step],
+      introCta: s.introSaving
+        ? "Preparing route…"
+        : step === 0
+          ? (selected ? `Continue with ${selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible"}` : "Choose one to continue")
+          : (isFixed && (!customFrom || !customTo) ? "Set locations to continue" : "Show my route"),
       introError: s.introError || "",
       introCanSkip: false,
       introInvalid: false,
-      introDisabled: Boolean(s.introSaving) || (step > 0 && !selected),
+      introDisabled: Boolean(s.introSaving) || (step === 0 && !selected) || (step === 1 && isFixed && (!customFrom || !customTo)),
       introNext: async () => {
-        if (step > 0 && !selected) return;
+        if (step === 0 && !selected) return;
+        if (step === 1 && isFixed && (!customFrom || !customTo)) return;
         if (step < total - 1) return this.setState({ introStep: step + 1 });
         const persona = selected || personaOf(DEFAULT_PERSONA);
         const schedulePlace = (place, end) => {
-          // Scenario defaults are deliberately Home/Work. A place picked in
-          // this flow has no such meaning, so give it a neutral, stable
-          // commute id and retain its actual OneMap name everywhere.
-          if (!(end === "from" ? s.introCustomFrom : s.introCustomTo)) return place;
+          if (!place) return null;
           const [lat, lng] = place.ll || [];
           return { ...place, id: `schedule-${end}:${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}` };
         };
-        const fromPlace = schedulePlace(customFrom, "from");
-        const toPlace = schedulePlace(customTo, "to");
+        const fromPlace = schedulePlace(customFrom, "from") || persona.route.from;
+        const toPlace = schedulePlace(customTo, "to") || persona.route.to;
         const [arrH, arrM] = arriveByTime.split(":").map((n) => parseInt(n, 10) || 0);
         const arriveByMins = arrH * 60 + arrM;
-        const [lH, lM] = leaveTime.split(":").map((n) => parseInt(n, 10) || 0);
+        const [lH, lM] = (leaveTime || "07:40").split(":").map((n) => parseInt(n, 10) || 0);
         const leaveMins = lH * 60 + lM;
 
         const commuteOverrides = {
@@ -2584,10 +2614,8 @@ export class AppLogic extends Component {
         };
         const savedPlaces = {
           ...(s.savedPlaces || {}),
-          // Only the unedited scenario defaults are role-labelled. Selected
-          // endpoints stay on the commute as their own actual places.
-          ...(!s.introCustomFrom ? { home: asSavedPlace(fromPlace) } : {}),
-          ...(!s.introCustomTo ? { work: asSavedPlace(toPlace) } : {}),
+          home: asSavedPlace(fromPlace),
+          work: asSavedPlace(toPlace),
         };
         const origin = { ...fromPlace };
         const destination = { name: toPlace.name, detail: toPlace.address, ll: toPlace.ll, kind: "Scenario" };
@@ -2605,7 +2633,7 @@ export class AppLogic extends Component {
               },
             };
             store(KEYS.authUser, updatedAuthUser);
-            this.syncAuthPreferences(routingPreferences, savedPlaces).catch(() => {});
+            await this.syncAuthPreferences(routingPreferences, savedPlaces);
           }
           this.setState({
             screen: "map", introStep: 0, introSaving: false,

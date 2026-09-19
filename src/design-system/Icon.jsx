@@ -4,8 +4,8 @@ import * as lucide from "lucide";
 function nodesFor(name) {
   // A missing or malformed name must not take down the whole tree.
   if (!name || typeof name !== "string") return null;
-  const pascal = name.replace(/(^|-)([a-z])/g, (_, __, c) => c.toUpperCase());
-  const node = lucide[pascal];
+  const pascal = name.replace(/(^|-)([a-z0-9])/gi, (_, __, c) => c.toUpperCase());
+  const node = lucide[pascal] || lucide[pascal.replace(/\d+$/, "")] || (pascal.toLowerCase().includes("clock") ? lucide.Clock : null);
   if (!node) return null;
   return Array.isArray(node) ? node : [];
 }

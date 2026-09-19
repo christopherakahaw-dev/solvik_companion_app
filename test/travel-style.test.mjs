@@ -10,8 +10,9 @@ test('PERSONAS have been updated to the requested travel style names', () => {
 });
 
 test('PERSONAS route labels and schedules match user requirements', () => {
-  assert.equal(PERSONAS.fixed.route.label, 'E.g. Tampines (Home) → Raffles Place (Work)');
-  assert.equal(PERSONAS.fixed.route.schedule, 'Leave 07:40 arrive by 08:45 , Every Weekday');
+  assert.equal(PERSONAS.fixed.route.label, '');
+  assert.equal(PERSONAS.fixed.route.schedule, '');
+  assert.equal(PERSONAS.fixed.fit, '');
 
   assert.equal(PERSONAS.flexible.route.label, '');
   assert.equal(PERSONAS.flexible.route.schedule, 'Flexible Journeys');
@@ -81,3 +82,11 @@ test('scenarioCommute respects custom locations and calculated leave times', asy
   assert.equal(commute.arriveBy, 540);
   assert.equal(commute.mins, 498);
 });
+
+test('lucide Clock icon exists and resolves correctly for time icon in Fixed Schedule', async () => {
+  const lucide = await import('lucide');
+  assert.ok(lucide.Clock, 'lucide.Clock should exist');
+  assert.ok(Array.isArray(lucide.Clock), 'lucide.Clock should be an SVG node definition array');
+  assert.ok(lucide.Clock.length > 0, 'lucide.Clock should have SVG elements (circle and hands)');
+});
+
