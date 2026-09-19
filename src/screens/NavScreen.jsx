@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, IconButton, Button, SectionLabel } from "../design-system";
 import { OneMapCanvas } from "../components/OneMapCanvas";
 import { SolvikBrand } from "../components/SolvikBrand";
@@ -5,10 +6,35 @@ import { styleText } from "../lib/styleText";
 import { CameraCapture } from "../components/CameraCapture";
 
 export function NavScreen({ v }) {
+  const cardRef = useRef(null);
+  const expandGesture = useRef(null);
+  const suppressGestureClick = useRef(false);
+  useEffect(() => {
+    const card = cardRef.current;
+    if (!card || v.navSheetExpanded) return;
+    let touch = null;
+    const wheel = (e) => { if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) { e.preventDefault(); v.navSheetExpand(); } };
+    const start = (e) => { touch = e.touches[0]; };
+    const move = (e) => {
+      if (!touch || !e.touches[0]) return;
+      const dx = e.touches[0].clientX - touch.clientX, dy = e.touches[0].clientY - touch.clientY;
+      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx) && !e.target.closest(".sv-nav-grab, .sv-nav-summary")) { e.preventDefault(); v.navSheetExpand(); touch = null; }
+    };
+    card.addEventListener("wheel", wheel, { passive: false, capture: true });
+    card.addEventListener("touchstart", start, { passive: true, capture: true });
+    card.addEventListener("touchmove", move, { passive: false, capture: true });
+    return () => { card.removeEventListener("wheel", wheel, true); card.removeEventListener("touchstart", start, true); card.removeEventListener("touchmove", move, true); };
+  }, [v.navSheetExpanded, v.navSheetExpand]);
+  const [following, setFollowing] = useState(true);
+  const [recenterToken, setRecenterToken] = useState(0);
+  const pauseFollowing = useCallback(() => setFollowing(false), []);
   return (
     <div style={{ position: "absolute", inset: 0 }}>
-      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} dest={v.destCoord} fitRoute={false} zoomControls={false} height="100%" />
+      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} dest={v.destCoord} fitRoute={false} followLocation={following} onExplore={pauseFollowing} recenterToken={recenterToken} zoomControls={false} height="100%" />
 
+      <button type="button" className={`sv-nav-follow${following ? " is-following" : ""}`} style={{ bottom: `calc(min(${v.navSheetStyle.height}px, 50%) + var(--sv-nav-bottom-gap, 0px) + 12px)`, transition: v.navSheetStyle.transition.replace("height", "bottom") }} aria-label={following ? "Following your location" : "Resume following my location"} aria-pressed={following} onClick={() => { setFollowing(true); setRecenterToken((token) => token + 1); }}>
+        <Icon name="locate-fixed" size={19} />
+      </button>
       <div className="sv-nav-top" style={{ position: "absolute", left: 14, right: 14, top: 14, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <IconButton icon="x" label="End trip" tone="plain" size="md" onClick={v.endTrip} />
@@ -45,13 +71,32 @@ export function NavScreen({ v }) {
         </div>
       </div>
 
-      <div className="sv-nav-sheet" style={v.navSheetStyle}>
-        <div onPointerDown={v.navSheetDrag} onDoubleClick={v.navSheetCycle} style={v.navGrabStyle}>
+      <div ref={cardRef} className={`sv-nav-sheet${v.navSheetCompact ? " is-compact" : ""}`} style={{ ...v.navSheetStyle, touchAction: v.navSheetExpanded ? "auto" : "pan-x" }}
+        onPointerDownCapture={(event) => {
+          suppressGestureClick.current = false;
+          expandGesture.current = !v.navSheetExpanded && event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+        }}
+        onPointerMoveCapture={(event) => {
+          const start = expandGesture.current;
+          if (!start) return;
+          const dx = event.clientX - start.x, dy = event.clientY - start.y;
+          if (dy < -12 && Math.abs(dy) > Math.abs(dx)) {
+            expandGesture.current = null;
+            suppressGestureClick.current = true;
+            v.navSheetExpand();
+          }
+        }}
+        onPointerUpCapture={() => { expandGesture.current = null; }}
+        onPointerCancelCapture={() => { expandGesture.current = null; }}
+        onClickCapture={(event) => {
+          if (suppressGestureClick.current) { event.preventDefault(); event.stopPropagation(); suppressGestureClick.current = false; }
+        }}>
+        <div className="sv-nav-grab" role="button" tabIndex={0} aria-label="Expand or collapse navigation" aria-expanded={v.navSheetExpanded} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); v.navSheetCycle(); } }} onPointerDown={v.navSheetDrag} style={v.navGrabStyle}>
           <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)", margin: "0 auto" }} />
         </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
+        <div className="sv-nav-summary" onPointerDown={v.navSheetCompact ? v.navSheetDrag : undefined} style={{ display: "flex", alignItems: "baseline", gap: 9 }}>
           <div className="sv-nav-eta" style={{ font: "var(--weight-heavy) 26px/1 var(--font-numeric)", fontVariantNumeric: "tabular-nums", color: "var(--text-strong)" }}>{v.navEta}</div>
-          <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>{v.navRemainLabel}</div>
+          <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>{v.navSheetCompact ? <span className="sv-nav-compact-stage"><Icon name={v.navIcon} size={15} />{v.navTitle}</span> : v.navRemainLabel}</div>
         </div>
         <div ref={v.setStepsRef} onScroll={v.onStepsScroll} onPointerDown={v.stepsDragStart} style={v.stepsPagerStyle}>
           {v.navList.map((st, i) => (
@@ -92,11 +137,11 @@ export function NavScreen({ v }) {
             <span key={i} style={d.style} />
           ))}
         </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <Button variant="secondary" size="md" fullWidth iconRight="megaphone" onClick={v.goReport}>
+        <div className="sv-nav-actions" style={{ display: "flex", gap: 10 }}>
+          <Button className="sv-nav-report" variant="secondary" size="md" fullWidth iconRight="megaphone" onClick={v.goReport}>
             Report
           </Button>
-          <Button variant="ghost" size="md" fullWidth onClick={v.endTrip}>
+          <Button className="sv-nav-end" variant="ghost" size="md" fullWidth onClick={v.endTrip}>
             End trip
           </Button>
         </div>

@@ -95,6 +95,8 @@ export function OneMapCanvas({
   style,
   fitRoute = true,
   recenterToken = 0,
+  followLocation = true,
+  onExplore,
   zoomControls = true,
   zoomInset = 12,
   zoomTop = "50%",
@@ -217,8 +219,9 @@ export function OneMapCanvas({
     }
     if (safeRoute.length > 1) {
       routeSegments(routeOption, safeRoute).forEach(({ points, color, walking }) => {
-        const line = L.polyline(points, { color, weight: 5, opacity: 1, dashArray: walking ? "1 10" : null, lineCap: "round", lineJoin: "round" }).addTo(map);
-        layersRef.current.push(line);
+        const outline = L.polyline(points, { color: "#ffffff", weight: walking ? 9 : 12, opacity: 0.95, dashArray: walking ? "1 13" : null, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
+        const line = L.polyline(points, { color, weight: walking ? 6 : 8, opacity: 1, dashArray: walking ? "1 13" : null, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
+        layersRef.current.push(outline, line);
       });
 
       // The affected stretch, drawn over the route in the disruption colour.
@@ -418,6 +421,27 @@ export function OneMapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(routeOption), JSON.stringify(safeRoute), JSON.stringify(safeCompare), JSON.stringify(affected), JSON.stringify(marker), markerAccuracy, JSON.stringify(origin), JSON.stringify(dest), JSON.stringify(pin), JSON.stringify(safeSavedPlaces), JSON.stringify(safeZones), JSON.stringify(safeIssues)]);
 
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !onExplore) return;
+    const container = map.getContainer();
+    const pause = () => { map.stop(); onExplore(); };
+    const touch = (event) => { if (event.touches.length > 1) pause(); };
+    const key = (event) => { if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "+", "-", "="].includes(event.key)) pause(); };
+    map.on("dragstart", pause);
+    map.on("dblclick", pause);
+    container.addEventListener("wheel", pause, { passive: true });
+    container.addEventListener("touchstart", touch, { passive: true });
+    container.addEventListener("keydown", key);
+    return () => {
+      map.off("dragstart", pause);
+      map.off("dblclick", pause);
+      container.removeEventListener("wheel", pause);
+      container.removeEventListener("touchstart", touch);
+      container.removeEventListener("keydown", key);
+    };
+  }, [onExplore]);
+
   const lastTokenRef = useRef(recenterToken);
   useEffect(() => {
     const map = mapRef.current;
@@ -433,6 +457,7 @@ export function OneMapCanvas({
         map.setView(center, Math.max(safeZoom, 16), { animate: true });
         return;
       }
+      if (!followLocation) return;
       if (safeRoute.length && fitRoute) return;
       if (Math.abs(map.getZoom() - safeZoom) > 0.01) map.setView(center, safeZoom, { animate: false });
       else map.panTo(center, { animate: true, duration: 0.8 });
@@ -440,7 +465,7 @@ export function OneMapCanvas({
       // The map is gone or not laid out yet; the next render sets the view.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(center), safeZoom, fitRoute, recenterToken]);
+  }, [JSON.stringify(center), safeZoom, fitRoute, recenterToken, followLocation]);
 
   const zoomBy = (delta) => {
     const m = mapRef.current;
