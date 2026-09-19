@@ -18,7 +18,7 @@ import { getWeather } from "../api/weather";
 import { getRoadConditions } from "../api/road";
 import { analyseCommuteMemory, rankRouteOptions } from "../api/ai";
 import { worstBandOn, roadLine, incidentNear } from "../lib/roadConditions";
-import { personaOf, personaList, scenarioCommute, scenarioDeparture, routeFitReason, modeFor, shouldInterrupt, reasonFor, DEFAULT_PERSONA } from "../lib/persona";
+import { personaOf, personaList, scenarioCommute, scenarioDeparture, routeFitReason, modeFor, shouldInterrupt, reasonFor, DEFAULT_PERSONA, PERSONAS } from "../lib/persona";
 import { forecastAt, nowcastAt, weatherLine, isWet, walkAdjustment, rankRoutesForWeather, routeWeatherProfile, weatherIconName, singaporeDayPhase } from "../lib/weather";
 import { submitReport, loadReportGroups as fetchReportGroups, loadMyReports as fetchMyReports } from "../api/reports";
 import { groupsFromCounts } from "../lib/confidence";
@@ -124,6 +124,13 @@ export class AppLogic extends Component {
       ? "auth"
       : (loadPreferences()?.travelStyleSelected ? "map" : "intro"),
     introScenario: null,
+    introCustomFrom: null,
+    introCustomTo: null,
+    introArriveByTime: "08:45",
+    introTravelMins: 65,
+    introLeaveTime: "07:40",
+    introExpectedRoute: "EWL with the walk at both ends",
+    introCalculatingTravel: false,
     rep: "pick", repType: null, sev: 1, rewardRedemptions: loadStored(KEYS.rewardRedemptions, []), toast: null, tick: 0,
     planned: { works: [], roadWorks: [], busChanges: [], pending: true, error: null },
     weather: { nowcast: null, outlook: null, pending: true, error: null },
@@ -358,6 +365,69 @@ export class AppLogic extends Component {
     } catch {
       // Background sync, failures are non-critical
     }
+  };
+
+  recalculateIntroJourney = async (from, to, arriveByTime) => {
+    const persona = personaOf(this.state.introScenario || DEFAULT_PERSONA);
+    const curFrom = from || this.state.introCustomFrom || persona.route.from;
+    const curTo = to || this.state.introCustomTo || persona.route.to;
+    const curArriveBy = arriveByTime || this.state.introArriveByTime || "08:45";
+
+    let travelMins = this.state.introTravelMins || 65;
+    let expected = this.state.introExpectedRoute || PERSONAS.fixed.route.expected;
+
+    if (curFrom?.ll && curTo?.ll) {
+      const isDefault = Math.abs(curFrom.ll[0] - 1.3531) < 0.005 && Math.abs(curTo.ll[0] - 1.2841) < 0.005;
+      if (isDefault) {
+        travelMins = 65;
+        expected = "EWL with the walk at both ends";
+      } else {
+        this.setState({ introCalculatingTravel: true });
+        try {
+          const options = await getTripOptions(curFrom.ll, curTo.ll, "fast", curTo.name);
+          if (options && options.length > 0 && options[0].mins) {
+            travelMins = options[0].mins;
+            expected = options[0].legsText || options[0].summary || "Fastest transit route";
+          } else {
+            const dist = metresBetween(curFrom.ll, curTo.ll);
+            travelMins = Math.max(15, Math.round(dist / 400 + 8));
+          }
+        } catch {
+          const dist = metresBetween(curFrom.ll, curTo.ll);
+          travelMins = Math.max(15, Math.round(dist / 400 + 8));
+        }
+      }
+    }
+
+    const [arrH, arrM] = curArriveBy.split(":").map((n) => parseInt(n, 10) || 0);
+    const arriveByMins = arrH * 60 + arrM;
+    let leaveMins = arriveByMins - travelMins;
+    while (leaveMins < 0) leaveMins += 24 * 60;
+    const leaveH = String(Math.floor(leaveMins / 60) % 24).padStart(2, "0");
+    const leaveM = String(leaveMins % 60).padStart(2, "0");
+    const leaveTime = `${leaveH}:${leaveM}`;
+
+    this.setState({
+      introCustomFrom: curFrom,
+      introCustomTo: curTo,
+      introArriveByTime: curArriveBy,
+      introTravelMins: travelMins,
+      introLeaveTime: leaveTime,
+      introExpectedRoute: expected,
+      introCalculatingTravel: false,
+    });
+  };
+
+  setIntroCustomFrom = (place) => {
+    this.recalculateIntroJourney(place, this.state.introCustomTo, this.state.introArriveByTime);
+  };
+
+  setIntroCustomTo = (place) => {
+    this.recalculateIntroJourney(this.state.introCustomFrom, place, this.state.introArriveByTime);
+  };
+
+  setIntroArriveBy = (arriveByTime) => {
+    this.recalculateIntroJourney(this.state.introCustomFrom, this.state.introCustomTo, arriveByTime);
   };
 
   findNearbyBusStops = () => {
@@ -1141,8 +1211,11 @@ export class AppLogic extends Component {
       };
     }
 
-    const f = PLACES.find((p) => p.id === next.from) || { label: next.from, place: next.from, ll: null };
-    const t = PLACES.find((p) => p.id === next.to) || { label: next.to, place: next.to, ll: null };
+    // A scheduled commute carries its own named endpoints. This avoids
+    // relabelling a campus, hospital, or other chosen place as "Home" or
+    // "Work" merely because it occupies the start/end position.
+    const f = PLACES.find((p) => p.id === next.from) || next.fromPlace || { label: next.from, place: next.from, ll: null };
+    const t = PLACES.find((p) => p.id === next.to) || next.toPlace || { label: next.to, place: next.to, ll: null };
     const itinerary = outlook.itinerary || null;
     const forecast = outlook.forecast || { series: {}, slots: [], missing: [] };
     const view = itinerary
@@ -1527,8 +1600,8 @@ export class AppLogic extends Component {
         this.flash("Commute removed");
       },
       saved: (s.savedList || []).map((c, i) => {
-        const f = PLACES.find((p) => p.id === c.from) || { label: c.from, place: c.from };
-        const t = PLACES.find((p) => p.id === c.to) || { label: c.to, place: c.to };
+        const f = PLACES.find((p) => p.id === c.from) || c.fromPlace || { label: c.from, place: c.from };
+        const t = PLACES.find((p) => p.id === c.to) || c.toPlace || { label: c.to, place: c.to };
         const ds = c.days || [];
         const dl =
           ds.length === 0 ? "no days"
@@ -2356,13 +2429,23 @@ export class AppLogic extends Component {
     const step = s.introStep || 0;
     const selectedId = s.introScenario;
     const selected = selectedId ? personaOf(selectedId) : null;
+    const isFixed = selected?.id === "fixed";
+    const customFrom = s.introCustomFrom || selected?.route.from || PERSONAS.fixed.route.from;
+    const customTo = s.introCustomTo || selected?.route.to || PERSONAS.fixed.route.to;
+    const arriveByTime = s.introArriveByTime || "08:45";
+    const leaveTime = s.introLeaveTime || "07:40";
+    const travelMins = s.introTravelMins != null ? s.introTravelMins : 65;
+    const expected = s.introExpectedRoute || (isFixed ? PERSONAS.fixed.route.expected : selected?.route.expected);
+    const hasCustomRoute = Boolean(s.introCustomFrom || s.introCustomTo);
+
     const scenarioIcon = { fixed: "clock-3", flexible: "bike", stepFree: "accessibility" };
     const rolePill = (on) =>
       "display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:var(--radius-card);cursor:pointer;font:var(--font-body);transition:background .15s,border-color .15s;" +
       (on ? "background:var(--accent-soft);border:1px solid var(--accent);color:var(--text-strong);" : "background:var(--surface-card);border:1px solid var(--border-card);color:var(--text-strong);");
     const total = 4;
+    const journeyTitle = isFixed ? `${customFrom.name} → ${customTo.name}` : (selected?.route.label || selected?.name || "Your style");
     const summary = selected ? [
-      { text: `${selected.route.label} is saved as the journey Solvik will open first.` },
+      { text: `${journeyTitle} is saved as the journey Solvik will open first.` },
       { text: selected.fit },
       { text: selected.id === "fixed" ? "Solvik stays quiet for minor delays and interrupts only when the impact reaches 15 minutes." : selected.limitation },
       { text: "Live conditions may revise the recommendation. Any issue shown is tied to this route and marked on the map." },
@@ -2391,20 +2474,45 @@ export class AppLogic extends Component {
         iconStyle: "flex:none;width:34px;height:34px;border-radius:999px;display:flex;align-items:center;justify-content:center;" + (selectedId === p.id ? "background:var(--accent);color:var(--text-on-accent);" : "background:var(--accent-soft);color:var(--text-accent);"),
         subStyle: "display:block;font:var(--type-caption);color:var(--text-muted);margin-top:3px",
         checkStyle: "flex:none;width:24px;height:24px;border-radius:999px;display:flex;align-items:center;justify-content:center;" + (selectedId === p.id ? "background:var(--accent);color:var(--text-on-accent);" : "background:transparent;color:transparent;"),
-        toggle: () => this.setState({ introScenario: p.id }),
+        toggle: () => this.setState({
+          introScenario: p.id,
+          // Each persona begins with its own meaningful journey. Any previous
+          // custom endpoints belong to the prior choice, not this commuter.
+          introCustomFrom: null,
+          introCustomTo: null,
+          introArriveByTime: p.route.arriveBy != null
+            ? `${String(Math.floor(p.route.arriveBy / 60)).padStart(2, "0")}:${String(p.route.arriveBy % 60).padStart(2, "0")}`
+            : "08:45",
+          introTravelMins: p.id === "fixed" ? 65 : null,
+          introLeaveTime: `${String(Math.floor(p.route.leaveMins / 60)).padStart(2, "0")}:${String(p.route.leaveMins % 60).padStart(2, "0")}`,
+          introExpectedRoute: p.route.expected,
+        }),
       })),
       introJourney: selected ? {
+        id: selected.id,
         name: selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible",
-        from: selected.route.from.name,
-        to: selected.route.to.name,
-        schedule: selected.route.schedule,
-        expected: selected.route.expected,
+        from: customFrom.name,
+        to: customTo.name,
+        schedule: isFixed ? `Leave ${leaveTime} arrive by ${arriveByTime} , Every Weekday` : selected.route.schedule,
+        expected: isFixed || hasCustomRoute ? expected : selected.route.expected,
         fit: selected.fit,
         limitation: selected.limitation,
         featured: !!selected.featured,
+        isFixed,
+        canEditLocations: true,
       } : null,
-      introSummaryTitle: selected ? `${selected.route.label} is ready` : "Choose a journey first",
+      introSummaryTitle: selected ? `${journeyTitle} is ready` : "Choose a journey first",
       introSummary: summary,
+      introCustomFrom: customFrom,
+      introCustomTo: customTo,
+      introArriveByTime: arriveByTime,
+      introLeaveTime: leaveTime,
+      introTravelMins: travelMins,
+      introHasCustomRoute: hasCustomRoute,
+      introCalculatingTravel: !!s.introCalculatingTravel,
+      setIntroCustomFrom: this.setIntroCustomFrom,
+      setIntroCustomTo: this.setIntroCustomTo,
+      setIntroArriveBy: this.setIntroArriveBy,
       introCta: s.introSaving ? "Preparing route…" : ["Choose your style", selected ? `Continue with ${selected.id === "fixed" ? "Fixed Schedule" : selected.id === "flexible" ? "Flexible and Multi-Modal" : "Easy and Accessible"}` : "Choose one to continue", "Review this setup", "Show my route"][step],
       introError: s.introError || "",
       introCanSkip: false,
@@ -2414,7 +2522,27 @@ export class AppLogic extends Component {
         if (step > 0 && !selected) return;
         if (step < total - 1) return this.setState({ introStep: step + 1 });
         const persona = selected || personaOf(DEFAULT_PERSONA);
-        const commute = scenarioCommute(persona.id);
+        const schedulePlace = (place, end) => {
+          // Scenario defaults are deliberately Home/Work. A place picked in
+          // this flow has no such meaning, so give it a neutral, stable
+          // commute id and retain its actual OneMap name everywhere.
+          if (!(end === "from" ? s.introCustomFrom : s.introCustomTo)) return place;
+          const [lat, lng] = place.ll || [];
+          return { ...place, id: `schedule-${end}:${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}` };
+        };
+        const fromPlace = schedulePlace(customFrom, "from");
+        const toPlace = schedulePlace(customTo, "to");
+        const [arrH, arrM] = arriveByTime.split(":").map((n) => parseInt(n, 10) || 0);
+        const arriveByMins = arrH * 60 + arrM;
+        const [lH, lM] = leaveTime.split(":").map((n) => parseInt(n, 10) || 0);
+        const leaveMins = lH * 60 + lM;
+
+        const commuteOverrides = {
+          from: fromPlace,
+          to: toPlace,
+          ...(isFixed ? { leaveMins, arriveBy: arriveByMins } : {}),
+        };
+        const commute = scenarioCommute(persona.id, commuteOverrides);
         const departure = scenarioDeparture(persona.id);
         const asSavedPlace = (place) => ({ ...place, source: "onemap", verified: true, updatedAt: Date.now() });
         const routingPreferences = {
@@ -2428,15 +2556,17 @@ export class AppLogic extends Component {
           avoidCrowds: persona.id === "flexible",
           studentFare: false,
           routineCommute: persona.id === "fixed",
+          ...(isFixed ? { leaveMins, arriveBy: arriveByMins, commuteMins: leaveMins } : {}),
         };
         const savedPlaces = {
           ...(s.savedPlaces || {}),
-          home: asSavedPlace(persona.route.from),
-          work: asSavedPlace(persona.route.to),
-          school: null,
+          // Only the unedited scenario defaults are role-labelled. Selected
+          // endpoints stay on the commute as their own actual places.
+          ...(!s.introCustomFrom ? { home: asSavedPlace(fromPlace) } : {}),
+          ...(!s.introCustomTo ? { work: asSavedPlace(toPlace) } : {}),
         };
-        const origin = { ...savedPlaces.home };
-        const destination = { name: persona.route.to.name, detail: persona.route.to.address, ll: persona.route.to.ll, kind: "Scenario" };
+        const origin = { ...fromPlace };
+        const destination = { name: toPlace.name, detail: toPlace.address, ll: toPlace.ll, kind: "Scenario" };
         this.setState({ introSaving: true, introError: "" });
         try {
           savePreferences(routingPreferences);
@@ -2471,7 +2601,7 @@ export class AppLogic extends Component {
             trips: { key: null, options: [], pending: false, error: null },
           }, this.loadTripOptions);
           store(ONBOARDED_KEY, 1);
-          this.flash(`${persona.route.label} · planning your best fit`);
+          this.flash(`${fromPlace.name} → ${toPlace.name} · planning your best fit`);
         } catch (error) {
           this.setState({ introSaving: false, introError: error?.message || "Setup could not be saved. Try again." });
         }

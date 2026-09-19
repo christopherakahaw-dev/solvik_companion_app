@@ -30,8 +30,8 @@ export const PERSONAS = {
       days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       leaveMins: 7 * 60 + 40,
       arriveBy: 8 * 60 + 45,
-      label: "Tampines → Raffles Place",
-      schedule: "Leave 07:40 · arrive by 08:45",
+      label: "E.g. Tampines (Home) → Raffles Place (Work)",
+      schedule: "Leave 07:40 arrive by 08:45 , Every Weekday",
       expected: "EWL with the walk at both ends",
     },
     fit: "Fast, dependable and quiet unless a delay threatens the 08:45 arrival.",
@@ -56,8 +56,8 @@ export const PERSONAS = {
       days: ["Mon", "Tue", "Wed", "Thu", "Fri"],
       leaveMins: 8 * 60,
       flexibleMins: 60,
-      label: "Punggol → one-north",
-      schedule: "Flexible start · within about 1 hour",
+      label: "",
+      schedule: "Flexible Journeys",
       expected: "Comfort-first transit, bus or cycling",
     },
     fit: "Comfort and predictability rank ahead of raw speed; a quieter departure may win.",
@@ -83,8 +83,8 @@ export const PERSONAS = {
       days: ["Wed"],
       leaveMins: 9 * 60,
       arriveBy: 10 * 60,
-      label: "Bedok → Singapore General Hospital",
-      schedule: "Fortnightly appointment · arrive by 10:00",
+      label: "",
+      schedule: "Accessible routes tailored to your needs",
       expected: "Step-free, low-walking door-to-door route",
     },
     fit: "Step-free access, fewer changes and short walks outrank a faster arrival.",
@@ -102,9 +102,14 @@ export function personaList() {
   return Object.values(PERSONAS);
 }
 
-export function scenarioCommute(id) {
+export function scenarioCommute(id, overrides = {}) {
   const persona = personaOf(id);
-  const route = persona.route;
+  const route = {
+    ...persona.route,
+    ...overrides,
+    from: { ...persona.route.from, ...(overrides.from || {}) },
+    to: { ...persona.route.to, ...(overrides.to || {}) },
+  };
   return {
     from: route.from.id,
     to: route.to.id,

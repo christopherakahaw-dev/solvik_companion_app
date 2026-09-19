@@ -22,6 +22,10 @@ export const KEYS = {
   reports: "solvik:reports",
   rewardRedemptions: "solvik:rewardRedemptions",
   authUser: "solvik:auth_user",
+  // Accounts created while the hosted demo is unable to write to its database.
+  // This stays on the user's device; password verifiers live here, never a
+  // plaintext password.
+  authAccounts: "solvik:auth_accounts",
   isGuest: "solvik:is_guest",
 };
 
