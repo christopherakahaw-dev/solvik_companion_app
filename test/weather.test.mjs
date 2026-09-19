@@ -143,3 +143,62 @@ test("wet cycling is placed behind a usable transit route", () => {
   assert.equal(ranked[0].originalIndex, 1);
   assert.match(ranked[1].weather.detail, /Cycling is deprioritised/i);
 });
+
+test("route weather checks intermediate transfer points even if start and destination are dry", () => {
+  const nowcast = {
+    areas: [
+      { name: "Start Point", ll: [1.30, 103.80], text: "Cloudy", condition: DRY },
+      { name: "Midway Transfer", ll: [1.35, 103.85], text: "Heavy Thundery Showers", condition: WET },
+      { name: "End Point", ll: [1.40, 103.90], text: "Fair", condition: DRY },
+    ],
+  };
+  const option = {
+    mins: 35,
+    walkSecs: 300,
+    legs: ["BUS 190"],
+    transitLegs: [
+      { from: "Start Point", fromLat: 1.30, fromLng: 103.80, to: "Midway Transfer", toLat: 1.35, toLng: 103.85 },
+      { from: "Midway Transfer", fromLat: 1.35, fromLng: 103.85, to: "End Point", toLat: 1.40, toLng: 103.90 },
+    ],
+  };
+  const profile = routeWeatherProfile({
+    nowcast,
+    outlook: null,
+    from: [1.30, 103.80],
+    to: [1.40, 103.90],
+    departureAt: Date.now(),
+    option,
+  });
+  assert.equal(profile.wet, true);
+  assert.equal(profile.condition, WET);
+  assert.match(profile.title, /Heavy Thundery Showers/);
+  assert.match(profile.detail, /near Midway Transfer/);
+});
+
+test("near-term trip gives authority to localized nowcast over coarse 24h outlook", () => {
+  const now = Date.now();
+  const nowcast = {
+    areas: [{ name: "Orchard", ll: [1.30, 103.83], text: "Partly Cloudy", condition: DRY }],
+  };
+  const outlook = {
+    periods: [{
+      label: "Morning",
+      start: new Date(now - 3600_000).toISOString(),
+      end: new Date(now + 3600_000).toISOString(),
+      regions: { central: { text: "Passing Showers", condition: SHOWERS } },
+    }],
+  };
+  const option = { mins: 25, walkSecs: 240, legs: ["NSL"] };
+  const profile = routeWeatherProfile({
+    nowcast,
+    outlook,
+    from: [1.30, 103.83],
+    to: [1.30, 103.83],
+    departureAt: now,
+    option,
+    now,
+  });
+  assert.equal(profile.wet, false);
+  assert.equal(profile.source, "Nowcast");
+  assert.equal(profile.condition, DRY);
+});

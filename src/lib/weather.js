@@ -77,13 +77,22 @@ export function parseNowcast(payload) {
     areas.set(area.name, { name: area.name, ll: [ll.latitude, ll.longitude] });
   });
   const record = (data.items || data.records || [])[0] || {};
+  const validPeriod = record.valid_period || {};
+  const periodText = validPeriod.text || "";
   const out = [];
   (record.forecasts || []).forEach((f) => {
     const area = areas.get(f.area);
     if (!area) return;
-    out.push({ ...area, text: f.forecast, condition: conditionOf(f.forecast) });
+    out.push({
+      ...area,
+      text: f.forecast,
+      condition: conditionOf(f.forecast),
+      label: periodText,
+      validFrom: validPeriod.start || null,
+      validTo: validPeriod.end || null,
+    });
   });
-  return { areas: out, validTo: (record.valid_period && record.valid_period.end) || null };
+  return { areas: out, validTo: validPeriod.end || null, validPeriod: periodText };
 }
 
 // The 24-hour forecast, as periods per region. This is the one that lets the app
@@ -143,7 +152,7 @@ export function nowcastAt(nowcast, ll) {
       best = area;
     }
   }
-  return best;
+  return best ? { ...best, label: best.label || nowcast.validPeriod || "" } : null;
 }
 
 // How much longer the walking legs take, and the sentence explaining it. The
@@ -175,38 +184,86 @@ export function weatherLine({ forecast, walkSecs }) {
 
 const CONDITION_RANK = { [DRY]: 0, [SHOWERS]: 1, [WET]: 2 };
 
-// Weather attached to one complete route. The feed is coarse, so we compare
-// the conditions nearest the start and destination instead of pretending to
-// know what happens on every metre of track. Near-term trips can use the
-// two-hour nowcast; scheduled trips use the 24-hour regional outlook.
+// Weather attached to one complete route. Analyzes weather across the entire
+// route corridor including origin, intermediate stops/transfers, and destination.
+// Near-term trips prioritize the high-resolution two-hour nowcast; scheduled
+// trips use the 24-hour regional outlook.
 export function routeWeatherProfile({ nowcast, outlook, from, to, departureAt, option, now = Date.now() }) {
   const leaveAt = Number(departureAt) || now;
-  const arriveAt = leaveAt + Math.max(0, Number(option?.mins) || 0) * 60_000;
-  const candidates = [];
-  const add = (forecast, where, source) => {
-    if (!forecast || !forecast.condition) return;
-    candidates.push({ ...forecast, where, source });
-  };
+  const totalMins = Math.max(0, Number(option?.mins) || 0);
+  const arriveAt = leaveAt + totalMins * 60_000;
+  const isNearTerm = Math.abs(leaveAt - now) <= 2 * 60 * 60 * 1000;
 
-  // The nowcast is useful only for a trip that is about to happen. For a
-  // future scenario, the period forecast is the honest source.
-  if (Math.abs(leaveAt - now) <= 2 * 60 * 60 * 1000) {
-    add(nowcastAt(nowcast, from), "near the start", "Nowcast");
-    add(nowcastAt(nowcast, to), "near the destination", "Nowcast");
+  // Build route waypoints: start, intermediate stops/transfers, and destination
+  const waypoints = [];
+  const startLL = from || (option?.geometry && option.geometry[0]) || null;
+  const destLL = to || (option?.geometry && option.geometry[option.geometry.length - 1]) || null;
+
+  if (startLL) {
+    waypoints.push({ ll: startLL, at: leaveAt, where: "near the start" });
   }
-  add(forecastAt({ outlook, ll: from, at: leaveAt }), "near the start", "Forecast");
-  add(forecastAt({ outlook, ll: to, at: arriveAt }), "near the destination", "Forecast");
 
-  const forecast = candidates.sort(
-    (a, b) => (CONDITION_RANK[b.condition] ?? -1) - (CONDITION_RANK[a.condition] ?? -1)
-  )[0] || null;
+  // Sample transit legs (board, transfer, alight)
+  (option?.transitLegs || []).forEach((leg) => {
+    if (Number.isFinite(leg.fromLat) && Number.isFinite(leg.fromLng)) {
+      const place = leg.from ? `near ${leg.from}` : "along the route";
+      waypoints.push({ ll: [leg.fromLat, leg.fromLng], at: leaveAt, where: place });
+    }
+    if (Number.isFinite(leg.toLat) && Number.isFinite(leg.toLng)) {
+      const place = leg.to ? `near ${leg.to}` : "along the route";
+      waypoints.push({ ll: [leg.toLat, leg.toLng], at: arriveAt, where: place });
+    }
+  });
+
+  // Sample intermediate points from route geometry if available
+  if (Array.isArray(option?.geometry) && option.geometry.length > 4) {
+    const midIdx = Math.floor(option.geometry.length / 2);
+    const midLL = option.geometry[midIdx];
+    if (midLL) {
+      waypoints.push({ ll: midLL, at: leaveAt + totalMins * 30_000, where: "along the route" });
+    }
+  }
+
+  if (destLL) {
+    waypoints.push({ ll: destLL, at: arriveAt, where: "near the destination" });
+  }
+
+  // Evaluate candidate forecasts at each waypoint.
+  // For near-term trips (within 2h), high-resolution Nowcast has authority.
+  // Regional 24-hr outlook is used when nowcast is not available or for future trips.
+  const candidates = [];
+  for (const wp of waypoints) {
+    let forecast = null;
+    if (isNearTerm && nowcast) {
+      const nc = nowcastAt(nowcast, wp.ll);
+      if (nc && nc.condition) {
+        forecast = { ...nc, where: wp.where, source: "Nowcast" };
+      }
+    }
+    if (!forecast && outlook) {
+      const fc = forecastAt({ outlook, ll: wp.ll, at: wp.at });
+      if (fc && fc.condition) {
+        forecast = { ...fc, where: wp.where, source: "Forecast" };
+      }
+    }
+    if (forecast) {
+      candidates.push(forecast);
+    }
+  }
+
+  // Deduplicate and rank: if any point is wet, pick the worst wet condition
+  const wetCandidates = candidates.filter((c) => isWet(c.condition));
+  const forecast = wetCandidates.length
+    ? wetCandidates.sort((a, b) => (CONDITION_RANK[b.condition] ?? -1) - (CONDITION_RANK[a.condition] ?? -1))[0]
+    : candidates[0] || null;
+
   if (!forecast) {
     return {
       available: false,
       condition: null,
       wet: false,
       extraMins: 0,
-      adjustedMins: Number(option?.mins) || 0,
+      adjustedMins: totalMins,
       cycling: false,
       title: "Weather unavailable",
       detail: "The route is ranked without a weather adjustment.",
@@ -237,7 +294,7 @@ export function routeWeatherProfile({ nowcast, outlook, from, to, departureAt, o
     source: forecast.source,
     where: forecast.where,
     extraMins: adjustment.extraMins,
-    adjustedMins: (Number(option?.mins) || 0) + adjustment.extraMins,
+    adjustedMins: totalMins + adjustment.extraMins,
     walkMins,
     cycling,
     title: `${forecast.text || "Weather"} on this route`,

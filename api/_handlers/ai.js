@@ -2,6 +2,7 @@
 // only rank the real OneMap options supplied by the app. Memory analysis is
 // returned to the same browser that supplied the recent journey summaries.
 import { generateStructured, geminiConfigured, geminiModel } from "../_lib/gemini.js";
+import { demoMode } from "../_lib/demo.js";
 
 const ROUTE_SCHEMA = {
   type: "object",
@@ -38,8 +39,25 @@ const MEMORY_SCHEMA = {
       maxItems: 4,
       items: { type: "string", enum: ["bus", "train", "transit", "walk", "cycle", "express"] },
     },
+    routines: {
+      type: "array",
+      maxItems: 5,
+      items: {
+        type: "object",
+        properties: {
+          fromName: { type: "string" },
+          toName: { type: "string" },
+          mode: { type: "string", enum: ["Bus", "Train", "Transit", "Walk", "Cycle", "Express"] },
+          days: { type: "string", enum: ["weekday", "weekend", "everyday"] },
+          departureTime: { type: "string" },
+          evidence: { type: "string" },
+        },
+        required: ["fromName", "toName", "mode", "days", "departureTime", "evidence"],
+        additionalProperties: false,
+      },
+    },
   },
-  required: ["summary", "confidence", "priorities", "preferredModes"],
+  required: ["summary", "confidence", "priorities", "preferredModes", "routines"],
   additionalProperties: false,
 };
 
@@ -93,6 +111,8 @@ export function cleanMemoryInput(body) {
       at: number(journey?.at),
       from: short(journey?.fromName, 80),
       to: short(journey?.toName, 80),
+      fromLL: Array.isArray(journey?.fromLL) && journey.fromLL.length >= 2 ? [number(journey.fromLL[0]), number(journey.fromLL[1])] : null,
+      toLL: Array.isArray(journey?.toLL) && journey.toLL.length >= 2 ? [number(journey.toLL[0]), number(journey.toLL[1])] : null,
       mode: short(journey?.mode, 20),
       legs: (Array.isArray(journey?.legs) ? journey.legs : []).slice(0, 6).map((leg) => short(leg, 60)),
       completed: journey?.completed === true,
@@ -119,7 +139,46 @@ export default async function handler(req, res) {
     res.setHeader("Allow", "POST");
     return res.status(405).json({ error: "Method not allowed." });
   }
-  if (!geminiConfigured()) return res.status(200).json({ configured: false });
+  if (!geminiConfigured()) {
+    if (demoMode()) {
+      const b = req.body && typeof req.body === "object" ? req.body : {};
+      if (b.action === "memory") {
+        return res.status(200).json({
+          configured: true,
+          model: "Gemini 2.5 Flash (Demo)",
+          insight: {
+            summary: "Regular weekday commute between Yishun and Raffles Place on the North-South Line, prioritizing comfort and direct transit.",
+            confidence: "high",
+            priorities: ["comfort", "predictability"],
+            preferredModes: ["transit", "train"],
+            routines: [
+              {
+                fromName: "Yishun",
+                toName: "Raffles Place",
+                mode: "Transit",
+                days: "weekday",
+                departureTime: "08:30",
+                evidence: "Consistent weekday morning departures from Yishun to Raffles Place via NSL.",
+              },
+            ],
+            updatedAt: Date.now(),
+          },
+        });
+      }
+      if (b.action === "route") {
+        return res.status(200).json({
+          configured: true,
+          model: "Gemini 2.5 Flash (Demo)",
+          decision: {
+            selectedIndex: 0,
+            reason: "Fastest direct connection matching routine preferences with minimal transfers.",
+            alternatives: [],
+          },
+        });
+      }
+    }
+    return res.status(200).json({ configured: false });
+  }
 
   const body = req.body && typeof req.body === "object" ? req.body : {};
   try {
@@ -149,11 +208,12 @@ export default async function handler(req, res) {
       if (input.journeys.length < 2) return res.status(200).json({ configured: true, model: geminiModel(), insight: null });
       const result = await generateStructured({
         schema: MEMORY_SCHEMA,
-        maxOutputTokens: 650,
+        maxOutputTokens: 800,
         prompt: [
-          "Summarise repeated commute behaviour from the supplied deliberate journey records.",
+          "Summarise repeated commute behaviour and identify recurring commute routines from the supplied deliberate journey records.",
           "Do not infer sensitive traits, identity, home/work labels, or anything absent from the records. Do not claim a routine from one trip.",
           "Priorities must reflect observable mode, completion and route choices. Keep summary to one short sentence and do not mention AI.",
+          "In routines, identify recurring trips that appear multiple times. Derive departureTime (e.g. '08:30'), days ('weekday', 'weekend', or 'everyday'), typical mode, and a concise factual evidence sentence (e.g. 'Completed 3 times on weekday mornings'). If no clear recurring routine exists yet, return an empty routines array.",
           `INPUT_JSON=${JSON.stringify(input)}`,
         ].join("\n"),
       });
@@ -162,6 +222,14 @@ export default async function handler(req, res) {
         confidence: ["low", "medium", "high"].includes(result.confidence) ? result.confidence : "low",
         priorities: (Array.isArray(result.priorities) ? result.priorities : []).slice(0, 4),
         preferredModes: (Array.isArray(result.preferredModes) ? result.preferredModes : []).slice(0, 4),
+        routines: (Array.isArray(result.routines) ? result.routines : []).slice(0, 5).map((r) => ({
+          fromName: short(r.fromName, 80),
+          toName: short(r.toName, 80),
+          mode: r.mode || "Transit",
+          days: ["weekday", "weekend", "everyday"].includes(r.days) ? r.days : "weekday",
+          departureTime: short(r.departureTime, 20),
+          evidence: short(r.evidence, 200),
+        })),
         updatedAt: Date.now(),
       } : null;
       return res.status(200).json({ configured: true, model: geminiModel(), insight });
