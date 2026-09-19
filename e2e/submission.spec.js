@@ -19,6 +19,8 @@ async function setup(page, places = { home, school }, options = {}) {
   await page.addInitScript(({ places }) => {
     if (!localStorage.getItem("qa:seeded")) {
       localStorage.setItem("solvik:onboarded", "1");
+      localStorage.setItem("solvik:is_guest", "true");
+      localStorage.setItem("solvik:preferences", JSON.stringify({ travelStyle: "flexible", persona: "flexible", travelStyleSelected: true }));
       localStorage.setItem("solvik:places", JSON.stringify({ version: 2, places }));
       localStorage.setItem("solvik:searches", JSON.stringify([{ name: "CLARKE QUAY MRT STATION", detail: "10 EU TONG SEN STREET", ll: [1.288, 103.846] }]));
       localStorage.setItem("qa:seeded", "1");
@@ -67,12 +69,13 @@ async function noOverflow(page) {
   expect(await page.locator("body").evaluate(el => el.scrollWidth <= window.innerWidth + 1)).toBe(true);
 }
 
-test("a new device opens mandatory local setup without an account gate", async ({ page }) => {
+test("a new device opens the account gate with a guest option", async ({ page }) => {
   await page.goto("/");
-  await expect(page.getByText("Your commute, minus the guesswork")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Choose a commuter" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Skip for now" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: /sign in|create account/i })).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toBeVisible();
+  const accountOptions = page.getByRole("tablist", { name: "Account options" });
+  await expect(accountOptions.getByRole("button", { name: "Sign In", exact: true })).toBeVisible();
+  await expect(accountOptions.getByRole("button", { name: "Register", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue as Guest" })).toBeVisible();
   await noOverflow(page);
 });
 

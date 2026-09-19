@@ -273,8 +273,8 @@ export function MapScreen({ v }) {
 
         {v.showResults && (
           <div className="sv-map-results">
-            <Card tone="plain">
-              <div style={{ font: "var(--weight-bold) var(--size-caption)/1.2 var(--font-body)", letterSpacing: "var(--tracking-label)", textTransform: "uppercase", color: "var(--text-muted)" }}>{v.resultsLabel}</div>
+            <Card tone="plain" className="sv-search-results-card">
+              <div className="sv-search-results-label">{v.resultsLabel}</div>
               {v.searchPending && (
                 <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "16px 0", font: "var(--type-body)", color: "var(--text-muted)" }}>
                   <Icon name="loader-2" size={16} style={{ animation: "sv-spin 900ms linear infinite" }} />
@@ -292,15 +292,15 @@ export function MapScreen({ v }) {
                 </div>
               )}
               {v.results.map((p, i) => (
-                <button key={i} onMouseDown={(event) => event.preventDefault()} onClick={p.pick} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--border-card)", padding: "14px 0", cursor: "pointer" }}>
+                <button className="sv-search-result-row" key={i} onMouseDown={(event) => event.preventDefault()} onClick={p.pick} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--border-card)", padding: "14px 0", cursor: "pointer" }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: "var(--type-body-strong)", color: "var(--text-strong)", textWrap: "pretty" }}>{p.name}</div>
-                    <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 4, textWrap: "pretty" }}>{p.detail}</div>
+                    <div className="sv-search-result-name">{p.name}</div>
+                    <div className="sv-search-result-detail">{p.detail}</div>
                   </div>
-                  <Tag tone="neutral">{p.kind}</Tag>
+                  <Icon name="chevron-right" size={15} color="var(--text-muted)" />
                 </button>
               ))}
-              <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 14 }}>{v.searchFooter}</div>
+              <div className="sv-search-results-footer">{v.searchFooter}</div>
             </Card>
           </div>
         )}

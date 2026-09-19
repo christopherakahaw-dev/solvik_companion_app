@@ -2315,30 +2315,42 @@ export class AppLogic extends Component {
       );
   };
 
-  navSnaps = [152, 260, 620];
+  navSnaps = [160, 260, 620];
   navSnap(h) {
-    return this.navSnaps.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a), this.navSnaps[0]);
+    return this.navSnaps.reduce((a, b) => Math.abs(b - h) < Math.abs(a - h) ? b : a, 160);
   }
+  navMaxHeight = () => {
+    const sheet = document.querySelector(".sv-nav-sheet");
+    return Math.max(160, (sheet?.parentElement?.clientHeight || window.innerHeight) * 0.5);
+  };
+  expandNavSheet = () => this.setState({ navSheetH: this.navMaxHeight(), navDragging: false });
   startNavDrag = (e) => {
-    const startY = e.clientY, startH = this.state.navSheetH == null ? 260 : this.state.navSheetH;
+    if (e.button !== 0) return;
+    e.preventDefault();
+    const sheet = e.currentTarget.closest(".sv-nav-sheet");
+    const maxHeight = this.navMaxHeight();
+    const startY = e.clientY, startH = sheet?.getBoundingClientRect().height || 260;
+    const snaps = [160, Math.min(260, maxHeight), maxHeight];
+    let current = startH, moved = false;
     this.setState({ navDragging: true });
     const move = (ev) => {
-      const h = Math.max(148, Math.min(680, startH - (ev.clientY - startY)));
-      this.setState({ navSheetH: h });
+      if (Math.abs(ev.clientY - startY) > 4) moved = true;
+      current = Math.max(160, Math.min(maxHeight, startH - (ev.clientY - startY)));
+      this.setState({ navSheetH: current });
     };
     const up = () => {
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", up);
-      this.setState((st) => ({ navDragging: false, navSheetH: this.navSnap(st.navSheetH == null ? 260 : st.navSheetH) }));
+      window.removeEventListener("pointercancel", cancel);
+      const target = moved ? snaps.reduce((a, b) => Math.abs(b - current) < Math.abs(a - current) ? b : a) : startH >= maxHeight - 2 ? 160 : maxHeight;
+      this.setState({ navDragging: false, navSheetH: target });
     };
+    const cancel = () => { moved = true; up(); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
   };
-  cycleNavSheet = () => {
-    const h = this.state.navSheetH == null ? 260 : this.state.navSheetH;
-    const idx = this.navSnaps.indexOf(this.navSnap(h));
-    this.setState({ navSheetH: this.navSnaps[(idx + 1) % this.navSnaps.length] });
-  };
+  cycleNavSheet = () => this.setState({ navSheetH: (this.state.navSheetH || 260) >= this.navMaxHeight() - 2 ? 160 : this.navMaxHeight() });
 
   introVals(s, sc) {
     const step = s.introStep || 0;
@@ -3436,11 +3448,14 @@ export class AppLogic extends Component {
       ...this.forecastVals(s),
       reportPick: s.rep === "pick", reportConfirm: s.rep === "confirm", reportDone: s.rep === "done",
       reportTypes: rTypes, chosenLabel: chosen.label, chosenPts: chosen.pts, severities, severityQ: sevSet.q,
+      navSheetExpanded: (s.navSheetH || 260) >= (typeof document !== "undefined" ? this.navMaxHeight() : 620) - 2,
+      navSheetExpand: this.expandNavSheet,
+      navSheetCompact: s.navSheetH != null && s.navSheetH < 180,
       navSheetStyle: {
         position: "absolute", left: 0, right: 0, bottom: 0, height: s.navSheetH == null ? 260 : s.navSheetH, maxHeight: "50%",
         background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)",
         padding: "10px 16px 16px", display: "flex", flexDirection: "column", gap: 11, boxSizing: "border-box", overflow: "hidden",
-        transition: s.navDragging ? "none" : "height 260ms cubic-bezier(.2,.7,.3,1)",
+        transition: s.navDragging ? "none" : "height 380ms cubic-bezier(.22,1,.36,1)",
       },
       navGrabStyle: { flex: "none", padding: "6px 0 4px", cursor: s.navDragging ? "grabbing" : "grab", touchAction: "none", userSelect: "none" },
       navDotsWrapStyle: { flex: "none", display: s.navSheetH != null && s.navSheetH < 240 ? "none" : "flex", justifyContent: "center", alignItems: "center", gap: 6 },
