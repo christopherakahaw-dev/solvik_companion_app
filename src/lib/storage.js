@@ -21,6 +21,8 @@ export const KEYS = {
   alertSeen: "solvik:alertSeen",
   reports: "solvik:reports",
   rewardRedemptions: "solvik:rewardRedemptions",
+  authUser: "solvik:auth_user",
+  isGuest: "solvik:is_guest",
 };
 
 export const PLACE_IDS = ["home", "work", "school"];
@@ -120,9 +122,11 @@ export function loadPreferences() {
   const prefs = Object.fromEntries(
     Object.entries(DEFAULT_PREFERENCES).map(([key, fallback]) => [key, typeof raw?.[key] === "boolean" ? raw[key] : fallback])
   );
-  // Persona is the one preference that is not a boolean: which of the three
-  // commuters in the brief this person is.
+  // Persona/travelStyle is the preference that is not a simple toggle:
+  // which travel style commuter this person is.
   prefs.persona = typeof raw?.persona === "string" ? raw.persona : null;
+  prefs.travelStyle = typeof raw?.travelStyle === "string" ? raw.travelStyle : null;
+  prefs.travelStyleSelected = Boolean(raw?.travelStyleSelected === true);
   prefs.scenario = typeof raw?.scenario === "string" ? raw.scenario : null;
   return prefs;
 }
