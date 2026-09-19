@@ -12,6 +12,7 @@ import { ViewportShell } from "./components/ViewportShell";
 import { AppMenu } from "./components/AppMenu";
 import { SolvikBrand } from "./components/SolvikBrand";
 import { AccountScreen } from "./screens/AccountScreen";
+import { AuthScreen } from "./screens/AuthScreen";
 import "./app.css";
 
 function ResponsivePageHeader({ v }) {
@@ -49,7 +50,8 @@ class LocalApp extends AppLogic {
   render() {
     const v = this.renderVals();
     return (
-      <ViewportShell fluid={!v.isIntro} largeText={v.largeText}>
+      <ViewportShell fluid={!v.isIntro && !v.isAuth} largeText={v.largeText}>
+        {v.isAuth && <AuthScreen v={v} />}
         {v.isIntro && <Intro v={v} />}
         {v.isMap && <MapScreen v={v} />}
         {v.isNav && <NavScreen v={v} />}
