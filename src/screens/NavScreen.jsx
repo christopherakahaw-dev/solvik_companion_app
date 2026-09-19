@@ -7,7 +7,7 @@ import { CameraCapture } from "../components/CameraCapture";
 export function NavScreen({ v }) {
   return (
     <div style={{ position: "absolute", inset: 0 }}>
-      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} dest={v.destCoord} fitRoute={false} zoomControls={false} height="100%" />
+      <OneMapCanvas center={v.navCoord} zoom={15} route={v.navRouteOption?.geometry || v.routeCoords} routeOption={v.navRouteOption} marker={v.navMarker} markerAccuracy={v.navAccuracy} heading={v.navHeading} dest={v.destCoord} fitRoute={false} zoomControls={false} height="100%" />
 
       <div className="sv-nav-top" style={{ position: "absolute", left: 14, right: 14, top: 14, display: "flex", flexDirection: "column", gap: 10 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>

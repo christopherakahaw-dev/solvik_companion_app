@@ -21,6 +21,17 @@ export function metresBetween(a, b) {
   return Math.hypot((b[1] - a[1]) * kx, (b[0] - a[0]) * ky);
 }
 
+// Initial bearing (azimuth) from coordinate a to coordinate b in degrees clockwise from true north (0–360°).
+export function bearingBetween(a, b) {
+  if (!a || !b || (a[0] === b[0] && a[1] === b[1])) return 0;
+  const lat1 = a[0] * DEG;
+  const lat2 = b[0] * DEG;
+  const dLng = (b[1] - a[1]) * DEG;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  return (Math.atan2(y, x) / DEG + 360) % 360;
+}
+
 const metricsCache = new WeakMap();
 
 // Per-segment and cumulative lengths, in metres. Cached per coordinate array:

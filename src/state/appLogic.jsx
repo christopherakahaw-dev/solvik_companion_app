@@ -26,7 +26,8 @@ import { requestNotify, showNotification, scheduleLeaveAlert, notifySupported } 
 import { getForecast } from "../api/forecast";
 import { getPosition, watchPosition, clearWatch, messageForError, getLastPosition } from "../lib/geolocation";
 import { acceptFix, alongMAtTime, coordAt, stepAtTime, timeAtAlongM, STALE_FIX_MS } from "../lib/navProgress";
-import { metresBetween } from "../lib/geometry";
+import { metresBetween, bearingBetween } from "../lib/geometry";
+import { subscribeHeading } from "../lib/compass";
 import { resolveRouteOrigin } from "../lib/routeOrigin";
 import { routeFailure, routeRecoveryModes } from "../lib/routeFailure";
 import { addressDetail, durationLabel, forecastSlots, remapOptionLabels, singaporeClock } from "../lib/display";
@@ -132,7 +133,7 @@ export class AppLogic extends Component {
     photo: null, cameraOpen: false, reportBusy: false, reportResult: null,
     navPhoto: null, navCameraOpen: false,
     query: "", dest: null, routeOrigin: null, searchTarget: "dest", searchOpen: false, tripAvoid: null, tripAvoidStations: null, tripDeparture: null, tripMode: "transit", tripRoute: 0, tripCollapsed: true,
-    userLoc: null, userAccuracy: null, userFixAt: null, locating: false, routeLocationPending: false, recenterToken: 0,
+    userLoc: null, userAccuracy: null, userHeading: null, userFixAt: null, locating: false, routeLocationPending: false, recenterToken: 0,
     // Turn-by-turn progress, advanced only by fixes good enough to trust.
     navProgress: null, navFixStatus: null,
     // Remote data, each held with its own pending/error so screens can say
@@ -159,6 +160,20 @@ export class AppLogic extends Component {
     stop: { data: null, pending: false, error: null, requested: false },
     nearbyStops: { items: [], pending: false, error: null, requested: false },
   };
+
+  componentDidMount() {
+    this._unsubHeading = subscribeHeading((heading) => {
+      if (this.state.userHeading !== heading) {
+        this.setState({ userHeading: heading });
+      }
+    });
+  }
+
+  componentWillUnmount() {
+    if (this._unsubHeading) {
+      this._unsubHeading();
+    }
+  }
 
   effectiveRouteOrigin() {
     return resolveRouteOrigin({
@@ -380,9 +395,17 @@ export class AppLogic extends Component {
   // updates the position and the trip progress in one state change.
   applyFix = (fix, extra) => {
     this.setState((st) => {
+      let userHeading = typeof fix.heading === "number" && !isNaN(fix.heading) ? fix.heading : st.userHeading;
+      if (userHeading == null && st.userLoc && fix.coords) {
+        const d = metresBetween(st.userLoc, fix.coords);
+        if (d > 1.5) {
+          userHeading = Math.round(bearingBetween(st.userLoc, fix.coords));
+        }
+      }
       const next = {
         userLoc: fix.coords,
         userAccuracy: fix.accuracy,
+        userHeading,
         userFixAt: fix.at || Date.now(),
         ...(typeof extra === "function" ? extra(st) : extra || {}),
       };
@@ -2872,6 +2895,7 @@ export class AppLogic extends Component {
       navCoord: s.userLoc || coordAt(navOpt, navAlongM) || navGeometry[0] || ORIGIN,
       navMarker: s.userLoc || null,
       navAccuracy: s.userLoc ? s.userAccuracy : null,
+      navHeading: s.userHeading,
       navProgressStyle: { width: Math.round(navFrac * 100) + "%", height: "100%", background: "var(--accent)", borderRadius: 999, transition: "width 1s linear" },
       setStepsRef: (el) => { this.stepsEl = el; },
       stepsPagerStyle: {
@@ -3149,6 +3173,7 @@ export class AppLogic extends Component {
       // The dot is drawn only where the device actually reported being — the
       // fallback origin is good enough to plan from, not to point at.
       userMarker: s.userLoc || null,
+      userHeading: s.userHeading,
       // No destination, no line: the map must not keep drawing the plan you
       // just backed out of.
       navRouteOption: navOpt,
