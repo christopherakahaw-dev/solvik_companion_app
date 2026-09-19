@@ -14,6 +14,19 @@ export function addressDetail(address, postal) {
   return code && !text.includes(code) ? [text, code].filter(Boolean).join(" · ") : text;
 }
 
+// Gemini reasons are written against the original OneMap order. The UI can
+// reorder those routes for weather and then move Gemini's winner to the top,
+// so translate the old human-facing number into the card's final position.
+export function remapOptionLabels(text, orderedOriginalIndexes) {
+  const displayNumberByOriginalIndex = new Map(
+    (orderedOriginalIndexes || []).map((originalIndex, displayIndex) => [originalIndex, displayIndex + 1])
+  );
+  return String(text || "").replace(/\b(option\s+)(\d+)\b/gi, (match, prefix, number) => {
+    const displayNumber = displayNumberByOriginalIndex.get(Number(number) - 1);
+    return displayNumber == null ? match : `${prefix}${displayNumber}`;
+  });
+}
+
 export function forecastSlots(slots, now = Date.now()) {
   return [null, ...[...new Set(slots || [])].filter((slot) => Number.isFinite(Date.parse(slot)) && Date.parse(slot) > now).sort((a, b) => Date.parse(a) - Date.parse(b))];
 }

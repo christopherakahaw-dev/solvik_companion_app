@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import searchHandler from "../api/_handlers/onemap-search.js";
 import stopHandler from "../api/_handlers/nearest-stop.js";
+import nearbyStopsHandler from "../api/_handlers/nearby-stops.js";
 
 function responseRecorder() {
   return {
@@ -34,4 +35,12 @@ test("nearest-stop coordinates are accepted from a private POST body", async () 
   await stopHandler({ url: "/api/nearest-stop", body: { lat: "not-a-number", lng: 103.8 }, query: {} }, res);
   assert.equal(res.statusCode, 400);
   assert.equal(res.headers["cache-control"], "private, no-store");
+});
+
+test("nearby bus-stop coordinates stay in a private POST body", async () => {
+  const res = responseRecorder();
+  await nearbyStopsHandler({ url: "/api/nearby-stops", body: { lat: 91, lng: 103.8 }, query: {} }, res);
+  assert.equal(res.statusCode, 400);
+  assert.equal(res.headers["cache-control"], "private, max-age=60");
+  assert.match(res.body.error, /lat\/lng/);
 });

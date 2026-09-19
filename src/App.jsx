@@ -71,16 +71,9 @@ class LocalApp extends AppLogic {
         <AddCommuteSheet v={v} />
 
         {v.toast && (
-          <div
-            style={{
-              position: "absolute", left: 16, right: 16, bottom: 92, zIndex: 50,
-              background: "var(--surface-dark)", color: "var(--text-on-dark)", borderRadius: "var(--radius-lg)",
-              padding: "14px 18px", font: "var(--weight-medium) var(--size-body-sm)/1.3 var(--font-body)",
-              boxShadow: "var(--shadow-raised)", animation: "solvik-sheet-in var(--dur-base) var(--ease-out) both",
-              textWrap: "pretty",
-            }}
-          >
-            {v.toast}
+          <div className="sv-toast" role="status" aria-live="polite">
+            <span className="sv-toast-icon" aria-hidden="true"><Icon name="route" size={16} strokeWidth={2.4} /></span>
+            <span>{v.toast}</span>
           </div>
         )}
 

@@ -2,6 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import aiHandler, { cleanMemoryInput, cleanRouteInput, normalizeOptionNumbers } from "../api/_handlers/ai.js";
 import { generateStructured, geminiConfigured, geminiModel, geminiSchema } from "../api/_lib/gemini.js";
+import { remapOptionLabels } from "../src/lib/display.js";
 
 function responseRecorder() {
   return {
@@ -95,6 +96,25 @@ test("zero-based option labels from Gemini are converted for people", () => {
   });
   assert.equal(decision.reason, "Option 1 is quicker than Option 3.");
   assert.equal(decision.alternatives[0].reason, "Option 2 is less suitable than Option 1.");
+});
+
+test("a zero-based winner label is detected even when Option 0 is not mentioned", () => {
+  const decision = normalizeOptionNumbers({
+    selectedIndex: 2,
+    reason: "Option 2 has the shortest walk.",
+    alternatives: [],
+  });
+  assert.equal(decision.reason, "Option 3 has the shortest walk.");
+});
+
+test("Gemini option labels follow the final card order", () => {
+  // Original Option 2 is recommended and moved above original Option 1.
+  const order = [1, 0, 2];
+  assert.equal(
+    remapOptionLabels("Option 2 is less crowded than Option 1.", order),
+    "Option 1 is less crowded than Option 2."
+  );
+  assert.equal(remapOptionLabels("Option 3 has more walking.", order), "Option 3 has more walking.");
 });
 
 test("unsupported schema keywords are removed only from the Gemini wire schema", () => {
