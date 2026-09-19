@@ -30,6 +30,8 @@ export function getPosition(options) {
         lastFix = {
           coords: [pos.coords.latitude, pos.coords.longitude],
           accuracy: pos.coords.accuracy,
+          heading: typeof pos.coords.heading === "number" && !isNaN(pos.coords.heading) ? pos.coords.heading : null,
+          speed: typeof pos.coords.speed === "number" && !isNaN(pos.coords.speed) ? pos.coords.speed : null,
           at: Date.now(),
         };
         resolve(lastFix);
@@ -52,6 +54,8 @@ export function watchPosition(onFix, onError) {
       lastFix = {
         coords: [pos.coords.latitude, pos.coords.longitude],
         accuracy: pos.coords.accuracy,
+        heading: typeof pos.coords.heading === "number" && !isNaN(pos.coords.heading) ? pos.coords.heading : null,
+        speed: typeof pos.coords.speed === "number" && !isNaN(pos.coords.speed) ? pos.coords.speed : null,
         at: Date.now(),
       };
       onFix(lastFix);

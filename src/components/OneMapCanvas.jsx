@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import L from "leaflet";
 import { routeSegments } from "../lib/routeSegments.js";
 import "leaflet/dist/leaflet.css";
@@ -86,6 +86,7 @@ export function OneMapCanvas({
   affected,
   marker,
   markerAccuracy,
+  heading,
   origin,
   dest,
   pin,
@@ -95,6 +96,8 @@ export function OneMapCanvas({
   issues,
   onMapClick,
   onZoneClick,
+  onRecenter,
+  recenterBottom,
   height = 320,
   interactive = true,
   style,
@@ -116,6 +119,15 @@ export function OneMapCanvas({
     ? savedPlaces.filter((place) => place && SAVED_PLACE_GLYPHS[place.id] && isLL(place.ll))
     : [];
   const safeBusStops = Array.isArray(busStops) ? busStops.filter((stop) => stop && isLL(stop.ll)) : [];
+
+  const [isShifted, setIsShifted] = useState(false);
+  const inactivityTimerRef = useRef(null);
+  const programmaticMoveRef = useRef(false);
+  const userMarkerRef = useRef(null);
+  const markerRef = useRef(marker);
+  markerRef.current = marker;
+  const headingRef = useRef(heading);
+  headingRef.current = heading;
 
   const ref = useRef(null);
   const mapRef = useRef(null);
@@ -169,7 +181,60 @@ export function OneMapCanvas({
       ref.current.dataset.mapCenter = `${next.lat.toFixed(6)},${next.lng.toFixed(6)}`;
     };
     map.whenReady(exposeCenter);
-    map.on("moveend", exposeCenter);
+
+    // Listen to user interactions to manage recenter button & 4-second auto-recenter
+    const onUserInteractionStart = () => {
+      if (inactivityTimerRef.current) {
+        clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = null;
+      }
+    };
+
+    const checkShiftedAndStartTimer = () => {
+      if (programmaticMoveRef.current) return;
+      const currentMarker = markerRef.current;
+      if (!isLL(currentMarker)) {
+        setIsShifted(false);
+        return;
+      }
+      const centerLL = map.getCenter();
+      const dist = map.distance(centerLL, L.latLng(currentMarker[0], currentMarker[1]));
+      if (dist > 35) {
+        setIsShifted(true);
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        inactivityTimerRef.current = setTimeout(() => {
+          if (!mapRef.current || !isLL(markerRef.current)) return;
+          programmaticMoveRef.current = true;
+          mapRef.current.flyTo(markerRef.current, Math.max(mapRef.current.getZoom(), 16), {
+            animate: true,
+            duration: 0.9,
+            easeLinearity: 0.25,
+          });
+          setIsShifted(false);
+        }, 4000);
+      } else {
+        if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+        setIsShifted(false);
+      }
+    };
+
+    map.on("dragstart", onUserInteractionStart);
+    map.on("movestart", () => {
+      if (!programmaticMoveRef.current) onUserInteractionStart();
+    });
+    map.on("zoomstart", () => {
+      if (!programmaticMoveRef.current) onUserInteractionStart();
+    });
+    map.on("dragend", checkShiftedAndStartTimer);
+    map.on("zoomend", checkShiftedAndStartTimer);
+    map.on("moveend", () => {
+      exposeCenter();
+      if (programmaticMoveRef.current) {
+        programmaticMoveRef.current = false;
+        return;
+      }
+      checkShiftedAndStartTimer();
+    });
     mapRef.current = map;
     let disposed = false;
     const invalidate = () => {
@@ -187,6 +252,7 @@ export function OneMapCanvas({
     }
     return () => {
       disposed = true;
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       cancelAnimationFrame(resizeFrame);
       if (ro) ro.disconnect();
       // Finish anything in flight first: a pan or zoom animation still running
@@ -257,19 +323,31 @@ export function OneMapCanvas({
         }).addTo(map);
         layersRef.current.push(ring);
       }
-      // An HTML marker rather than a circle, so the dot can carry the pulsing
-      // halo (CSS, see tokens/index.css) that a Leaflet vector can't.
+      // A Google Maps-style directional navigation marker:
+      // A translucent elevated circular disc carrying a blue 3D navigation chevron
+      // pointing along the travel heading, with an outer pulsing location halo.
+      const safeHeading = typeof heading === "number" && !isNaN(heading) ? heading : (headingRef.current || 0);
       const me = L.marker(marker, {
         interactive: false,
         keyboard: false,
         zIndexOffset: 800,
         icon: L.divIcon({
-          className: "",
-          html: '<div class="sv-locate"><span class="sv-locate-halo"></span><span class="sv-locate-dot"></span></div>',
-          iconSize: [18, 18],
-          iconAnchor: [9, 9],
+          className: "sv-locate-nav-container",
+          html:
+            '<div class="sv-locate-nav">' +
+              '<span class="sv-locate-halo"></span>' +
+              '<div class="sv-locate-nav-disc">' +
+                `<svg class="sv-locate-chevron" viewBox="0 0 24 24" width="22" height="22" style="transform:rotate(${safeHeading}deg);" aria-hidden="true">` +
+                  '<path d="M12 3 L4 20.5 L12 17 Z" fill="#4285F4" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round"/>' +
+                  '<path d="M12 3 L20 20.5 L12 17 Z" fill="#1A73E8" stroke="#ffffff" stroke-width="0.8" stroke-linejoin="round"/>' +
+                '</svg>' +
+              '</div>' +
+            '</div>',
+          iconSize: [40, 40],
+          iconAnchor: [20, 20],
         }),
       }).addTo(map);
+      userMarkerRef.current = me;
       layersRef.current.push(me);
     }
     if (isLL(pin)) {
@@ -440,6 +518,17 @@ export function OneMapCanvas({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(routeOption), JSON.stringify(safeRoute), JSON.stringify(safeCompare), JSON.stringify(affected), JSON.stringify(marker), markerAccuracy, JSON.stringify(origin), JSON.stringify(dest), JSON.stringify(pin), JSON.stringify(safeSavedPlaces), JSON.stringify(safeBusStops), JSON.stringify(safeZones), JSON.stringify(safeIssues)]);
 
+  // Update marker chevron rotation smoothly when heading changes without rebuilding layers
+  useEffect(() => {
+    if (!userMarkerRef.current) return;
+    const el = userMarkerRef.current.getElement();
+    if (!el) return;
+    const chevron = el.querySelector(".sv-locate-chevron");
+    if (chevron && typeof heading === "number" && !isNaN(heading)) {
+      chevron.style.transform = `rotate(${heading}deg)`;
+    }
+  }, [heading]);
+
   const lastTokenRef = useRef(recenterToken);
   useEffect(() => {
     const map = mapRef.current;
@@ -452,17 +541,47 @@ export function OneMapCanvas({
     // screen mid-animation); that is not worth an uncaught error.
     try {
       if (forced) {
-        map.setView(center, Math.max(safeZoom, 16), { animate: true });
+        if (inactivityTimerRef.current) {
+          clearTimeout(inactivityTimerRef.current);
+          inactivityTimerRef.current = null;
+        }
+        setIsShifted(false);
+        programmaticMoveRef.current = true;
+        map.flyTo(center, Math.max(safeZoom, 16), { animate: true, duration: 0.9, easeLinearity: 0.25 });
         return;
       }
       if (safeRoute.length && fitRoute) return;
-      if (Math.abs(map.getZoom() - safeZoom) > 0.01) map.setView(center, safeZoom, { animate: false });
-      else map.panTo(center, { animate: true, duration: 0.8 });
+      if (Math.abs(map.getZoom() - safeZoom) > 0.01) {
+        map.flyTo(center, safeZoom, { animate: true, duration: 0.9, easeLinearity: 0.25 });
+      } else {
+        map.panTo(center, { animate: true, duration: 0.8, easeLinearity: 0.25 });
+      }
     } catch {
       // The map is gone or not laid out yet; the next render sets the view.
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [JSON.stringify(center), safeZoom, fitRoute, recenterToken]);
+
+  const handleRecenterClick = (e) => {
+    e.stopPropagation();
+    if (inactivityTimerRef.current) {
+      clearTimeout(inactivityTimerRef.current);
+      inactivityTimerRef.current = null;
+    }
+    const map = mapRef.current;
+    if (map && isLL(marker)) {
+      programmaticMoveRef.current = true;
+      setIsShifted(false);
+      map.flyTo(marker, Math.max(map.getZoom(), 16), {
+        animate: true,
+        duration: 0.9,
+        easeLinearity: 0.25,
+      });
+    }
+    if (typeof onRecenter === "function") {
+      onRecenter();
+    }
+  };
 
   const zoomBy = (delta) => {
     const m = mapRef.current;
@@ -472,6 +591,25 @@ export function OneMapCanvas({
   return (
     <div style={{ position: "relative", height, background: "var(--map-land)", overflow: "hidden", ...style }}>
       <div ref={ref} style={{ position: "absolute", inset: 0, filter: "saturate(.72) sepia(.12) brightness(1.03) contrast(.96)" }} />
+      {interactive && isShifted && isLL(marker) && (
+        <button
+          type="button"
+          className="sv-map-recenter-pill"
+          onClick={handleRecenterClick}
+          aria-label="Re-centre to current location"
+          style={{
+            position: "absolute",
+            left: 14,
+            bottom: recenterBottom || "var(--sv-recenter-bottom, var(--sv-locate-mobile-bottom, 96px))",
+            zIndex: 500,
+          }}
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true" style={{ color: "var(--accent, #005a54)", flexShrink: 0 }}>
+            <path d="M12 2L4 21L12 17L20 21L12 2Z" />
+          </svg>
+          <span>Re-centre</span>
+        </button>
+      )}
       {interactive && zoomControls ? (
         <div
           style={{
