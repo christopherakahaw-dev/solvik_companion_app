@@ -1,8 +1,88 @@
+import { useEffect, useRef, useState } from "react";
 import { Icon, Button } from "../design-system";
 import { styleText } from "../lib/styleText";
 import { SolvikBrand } from "../components/SolvikBrand";
+import { PlacePicker } from "../components/PlacePicker";
+
+function formatArrivalTime(value) {
+  const [rawHour, rawMinute] = String(value || "08:45").split(":");
+  const hour = Number(rawHour) || 0;
+  const minute = String(Number(rawMinute) || 0).padStart(2, "0");
+  const period = hour >= 12 ? "pm" : "am";
+  return `${String(hour % 12 || 12).padStart(2, "0")}:${minute} ${period}`;
+}
+
+function WheelColumn({ label, options, value, onChange }) {
+  const scroller = useRef(null);
+  const itemHeight = 42;
+  const selectedIndex = Math.max(0, options.indexOf(value));
+
+  useEffect(() => {
+    scroller.current?.scrollTo({ top: selectedIndex * itemHeight, behavior: "auto" });
+  }, [selectedIndex]);
+
+  return (
+    <div className="sv-arrival-wheel-column">
+      <span>{label}</span>
+      <div
+        ref={scroller}
+        className="sv-arrival-wheel"
+        aria-label={label}
+        onScroll={(event) => {
+          const index = Math.max(0, Math.min(options.length - 1, Math.round(event.currentTarget.scrollTop / itemHeight)));
+          if (options[index] !== value) onChange(options[index]);
+        }}
+      >
+        <div className="sv-arrival-wheel-pad" aria-hidden="true" />
+        {options.map((option) => (
+          <button key={option} type="button" className={option === value ? "is-selected" : ""} onClick={() => onChange(option)}>{option}</button>
+        ))}
+        <div className="sv-arrival-wheel-pad" aria-hidden="true" />
+      </div>
+    </div>
+  );
+}
+
+function ArrivalTimePicker({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(value || "08:45");
+  const [hour24, minute = "00"] = String(draft || "08:45").split(":");
+  const hour = Number(hour24) || 0;
+  const displayHour = hour % 12 || 12;
+  const period = hour >= 12 ? "pm" : "am";
+  const update = (nextHour = displayHour, nextMinute = minute, nextPeriod = period) => {
+    const baseHour = Number(nextHour) % 12;
+    const as24 = nextPeriod === "pm" ? baseHour + 12 : baseHour;
+    setDraft(`${String(as24).padStart(2, "0")}:${String(nextMinute).padStart(2, "0")}`);
+  };
+
+  useEffect(() => {
+    if (!open) setDraft(value || "08:45");
+  }, [value, open]);
+
+  return (
+    <div className="sv-arrival-time-picker">
+      <button type="button" className="sv-arrival-time-trigger" aria-expanded={open} aria-haspopup="dialog" onClick={() => { setDraft(value || "08:45"); setOpen((shown) => !shown); }}>
+        <span>{formatArrivalTime(open ? draft : value)}</span>
+        <Icon name="clock-3" size={17} />
+      </button>
+      {open && (
+        <div className="sv-arrival-time-menu" role="dialog" aria-label="Choose arrival time">
+          <div className="sv-arrival-wheel-row">
+            <WheelColumn label="Hour" options={Array.from({ length: 12 }, (_, index) => index + 1)} value={displayHour} onChange={(next) => update(next)} />
+            <WheelColumn label="Minute" options={["00", "05", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55"]} value={minute} onChange={(next) => update(displayHour, next)} />
+            <WheelColumn label="Period" options={["am", "pm"]} value={period} onChange={(next) => update(displayHour, minute, next)} />
+          </div>
+          <button type="button" className="sv-arrival-time-done" onClick={() => { onChange(draft); setOpen(false); }}>Set arrival time</button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function Intro({ v }) {
+  const [editingFrom, setEditingFrom] = useState(false);
+  const [editingTo, setEditingTo] = useState(false);
   return (
     <div style={{ position: "absolute", inset: 0, background: "var(--sand-50)", display: "flex", flexDirection: "column", padding: "54px 20px 22px" }}>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 9 }}>
@@ -55,8 +135,8 @@ export function Intro({ v }) {
                       <span style={{ padding: "3px 7px", borderRadius: 999, background: r.id === "fixed" ? "var(--accent)" : "var(--sand-200)", color: r.id === "fixed" ? "var(--text-on-accent)" : "var(--text-muted)", font: "var(--weight-bold) 9px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase" }}>{r.badge}</span>
                     </span>
                     <span style={styleText(r.subStyle)}>{r.sub}</span>
-                    <span style={{ display: "block", font: "var(--weight-bold) 11.5px/1.3 var(--font-body)", color: "var(--text-accent)", marginTop: 7 }}>{r.route}</span>
-                    <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 2 }}>{r.schedule}</span>
+                    {r.route ? <span style={{ display: "block", font: "var(--weight-bold) 11.5px/1.3 var(--font-body)", color: "var(--text-accent)", marginTop: 7 }}>{r.route}</span> : null}
+                    <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: r.route ? 2 : 6 }}>{r.schedule}</span>
                   </span>
                   <span style={styleText(r.checkStyle)}>
                     <Icon name="check" size={14} />
@@ -74,13 +154,115 @@ export function Intro({ v }) {
             {v.introJourney && <div style={{ marginTop: 22, padding: 18, borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)", boxShadow: "var(--shadow-card)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: "14px 12px", alignItems: "start" }}>
                 <span style={{ width: 28, height: 28, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--text-strong)", color: "var(--text-on-dark)" }}><Icon name="map-pin" size={14} /></span>
-                <div><small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>From</small><strong style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2 }}>{v.introJourney.from}</strong></div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>From</small>
+                    {v.introJourney.canEditLocations && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingFrom(!editingFrom)}
+                        style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                      >
+                        {editingFrom ? "Done" : "Change"}
+                      </button>
+                    )}
+                  </div>
+                  {editingFrom ? (
+                    <div style={{ marginTop: 6 }}>
+                      <PlacePicker
+                        value={null}
+                        displayValue={v.introJourney.from}
+                        clearOnFocus
+                        placeholder="Search origin location…"
+                        icon="map-pin"
+                        onChange={(place) => {
+                          if (place) {
+                            v.setIntroCustomFrom(place);
+                            setEditingFrom(false);
+                          }
+                        }}
+                        showDetails={false}
+                      />
+                    </div>
+                  ) : (
+                    <strong
+                      onClick={() => v.introJourney.canEditLocations && setEditingFrom(true)}
+                      style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: v.introJourney.canEditLocations ? "pointer" : "default" }}
+                      title={v.introJourney.canEditLocations ? "Click to change origin" : undefined}
+                    >
+                      {v.introJourney.from}
+                    </strong>
+                  )}
+                </div>
+
                 <span style={{ width: 28, height: 28, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent)", color: "var(--text-on-accent)" }}><Icon name="flag" size={14} /></span>
-                <div><small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>To</small><strong style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2 }}>{v.introJourney.to}</strong></div>
+                <div>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                    <small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>To</small>
+                    {v.introJourney.canEditLocations && (
+                      <button
+                        type="button"
+                        onClick={() => setEditingTo(!editingTo)}
+                        style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                      >
+                        {editingTo ? "Done" : "Change"}
+                      </button>
+                    )}
+                  </div>
+                  {editingTo ? (
+                    <div style={{ marginTop: 6 }}>
+                      <PlacePicker
+                        value={null}
+                        displayValue={v.introJourney.to}
+                        clearOnFocus
+                        placeholder="Search destination…"
+                        icon="flag"
+                        onChange={(place) => {
+                          if (place) {
+                            v.setIntroCustomTo(place);
+                            setEditingTo(false);
+                          }
+                        }}
+                        showDetails={false}
+                      />
+                    </div>
+                  ) : (
+                    <strong
+                      onClick={() => v.introJourney.canEditLocations && setEditingTo(true)}
+                      style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: v.introJourney.canEditLocations ? "pointer" : "default" }}
+                      title={v.introJourney.canEditLocations ? "Click to change destination" : undefined}
+                    >
+                      {v.introJourney.to}
+                    </strong>
+                  )}
+                </div>
               </div>
+
               <div style={{ height: 1, background: "var(--border-card)", margin: "16px 0" }} />
-              <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--type-body-strong)", color: "var(--text-strong)" }}><Icon name="clock-3" size={17} />{v.introJourney.schedule}</div>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 10, font: "var(--type-caption)", color: "var(--text-muted)" }}><Icon name="route" size={16} style={{ flex: "none", marginTop: 1 }} /><span>{v.introJourney.expected}</span></div>
+
+              {v.introJourney.isFixed && (
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, padding: "8px 12px", background: "var(--sand-100)", borderRadius: "var(--radius-card)" }}>
+                  <div style={{ font: "var(--type-body-strong)", color: "var(--text-strong)", display: "flex", alignItems: "center", gap: 6, fontSize: "13px" }}>
+                    <Icon name="clock-3" size={15} />
+                    <span>Change Arrive By:</span>
+                  </div>
+                  <ArrivalTimePicker value={v.introArriveByTime} onChange={v.setIntroArriveBy} />
+                </div>
+              )}
+
+              <div style={{ display: "flex", alignItems: "center", gap: 9, font: "var(--type-body-strong)", color: "var(--text-strong)" }}>
+                <Icon name="clock-3" size={17} />
+                <span>{v.introJourney.schedule}</span>
+              </div>
+              {(v.introJourney.isFixed || v.introHasCustomRoute) && (
+                <div style={{ display: "flex", alignItems: "center", gap: 6, font: "var(--type-caption)", color: "var(--text-accent)", marginTop: 4, marginLeft: 26 }}>
+                  <span>{v.introCalculatingTravel ? "Calculating travel time…" : `Estimated ${v.introTravelMins} mins travel time`}</span>
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 9, marginTop: 10, font: "var(--type-caption)", color: "var(--text-muted)" }}>
+                <Icon name="route" size={16} style={{ flex: "none", marginTop: 1 }} />
+                <span>{v.introJourney.expected}</span>
+              </div>
             </div>}
             {v.introJourney && <div style={{ marginTop: 12, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--accent-soft)", color: "var(--text-body)", font: "var(--type-caption)", textWrap: "pretty" }}><strong style={{ color: "var(--text-accent)" }}>Why this fit:</strong> {v.introJourney.fit}</div>}
             {v.introJourney && !v.introJourney.featured && <div style={{ marginTop: 10, padding: "13px 14px", borderRadius: "var(--radius-card)", background: "var(--sand-100)", color: "var(--text-muted)", font: "var(--type-caption)", textWrap: "pretty" }}><strong>Honest limitation:</strong> {v.introJourney.limitation}</div>}
