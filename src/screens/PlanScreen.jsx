@@ -21,23 +21,74 @@ export function PlanScreen({ v }) {
         )}
       </div>
 
-      {v.justAdded && (
-        <div className="sv-plan-learned" style={{ borderRadius: "var(--radius-card)", background: "var(--accent-soft)", border: "1px solid var(--accent)", padding: "15px 16px" }}>
+      {v.routineAlert && (
+        <div
+          className="sv-routine-alert"
+          style={{
+            borderRadius: "var(--radius-card)",
+            background: "var(--surface-card)",
+            border: "1.5px solid var(--status-warn, #d97706)",
+            padding: "16px 16px 15px",
+            boxShadow: "var(--shadow-card)",
+          }}
+        >
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ width: 26, height: 26, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent)", color: "var(--text-on-accent)" }}>
-              <Icon name="sparkles" size={14} />
+            <span
+              style={{
+                width: 26,
+                height: 26,
+                borderRadius: 999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "rgba(217, 119, 6, 0.15)",
+                color: "var(--status-warn, #d97706)",
+              }}
+            >
+              <Icon name="triangle-alert" size={15} />
             </span>
-            <SectionLabel>Learned from your trips</SectionLabel>
+            <SectionLabel>{v.routineAlert.kicker || "Routine Watch · Disruption Alert"}</SectionLabel>
           </div>
-          <div style={{ font: "var(--weight-heavy) 16px/1.25 var(--font-display)", letterSpacing: "-.02em", color: "var(--text-strong)", marginTop: 10, textWrap: "pretty" }}>{v.justAdded.title}</div>
-          <div style={{ font: "var(--type-body)", color: "var(--text-body)", marginTop: 4, textWrap: "pretty" }}>{v.justAdded.when}</div>
-          <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 6, textWrap: "pretty" }}>{v.justAdded.evidence}</div>
-          <div style={{ display: "flex", gap: 8, marginTop: 13 }}>
-            <Button variant="secondary" size="sm" onClick={v.justAdded.undo}>
-              Undo
+          <div
+            style={{
+              font: "var(--weight-heavy) 16.5px/1.25 var(--font-display)",
+              letterSpacing: "-.02em",
+              color: "var(--text-strong)",
+              marginTop: 10,
+              textWrap: "pretty",
+            }}
+          >
+            {v.routineAlert.title}
+          </div>
+          <div style={{ font: "var(--type-body)", color: "var(--text-body)", marginTop: 5, textWrap: "pretty" }}>
+            {v.routineAlert.detail}
+          </div>
+          {v.routineAlert.advice && (
+            <div
+              style={{
+                font: "var(--type-caption)",
+                color: "var(--text-body)",
+                marginTop: 8,
+                padding: "8px 10px",
+                borderRadius: 12,
+                background: "var(--sand-100)",
+                textWrap: "pretty",
+              }}
+            >
+              {v.routineAlert.advice}
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginTop: 13, flexWrap: "wrap" }}>
+            <Button variant="secondary" size="sm" iconRight="arrow-right" onClick={v.routineAlert.action}>
+              {v.routineAlert.actionLabel || "Check alternative routes"}
             </Button>
-            <Button variant="ghost" size="sm" onClick={v.justAdded.dismiss}>
-              Keep it
+            {v.routineAlert.addCommute && (
+              <Button variant="ghost" size="sm" iconLeft="bookmark-plus" onClick={v.routineAlert.addCommute}>
+                Add to Commutes
+              </Button>
+            )}
+            <Button variant="ghost" size="sm" onClick={v.routineAlert.dismiss}>
+              Dismiss
             </Button>
           </div>
         </div>
@@ -336,6 +387,37 @@ export function PlanScreen({ v }) {
               ))}
             </div>
           )}
+          {v.memoryRoutines && v.memoryRoutines.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <SectionLabel>Learned routines</SectionLabel>
+              <div style={{ display: "flex", flexDirection: "column", gap: 7, marginTop: 8 }}>
+                {v.memoryRoutines.map((r, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      padding: "9px 12px",
+                      background: "var(--sand-100)",
+                      borderRadius: 12,
+                      gap: 8,
+                    }}
+                  >
+                    <div>
+                      <div style={{ font: "var(--type-body-strong)", color: "var(--text-strong)" }}>{r.name}</div>
+                      <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 2 }}>{r.detail}</div>
+                    </div>
+                    {r.add && (
+                      <Button variant="ghost" size="sm" iconLeft="plus" onClick={r.add}>
+                        Add
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {v.memoryPlaces.length > 0 && (
             <div style={{ marginTop: 12 }}>
               <SectionLabel>{v.memoryPlacesLabel}</SectionLabel>
@@ -359,6 +441,16 @@ export function PlanScreen({ v }) {
             {v.canSeedTrips && (
               <Button variant="secondary" size="sm" iconLeft="sparkles" onClick={v.seedSampleTrips}>
                 Add a week of sample trips
+              </Button>
+            )}
+            {v.canToggleDemoAlert && (
+              <Button
+                variant={v.demoAlertActive ? "primary" : "secondary"}
+                size="sm"
+                iconLeft="triangle-alert"
+                onClick={v.toggleDemoAlert}
+              >
+                {v.demoAlertActive ? "Clear simulated disruption" : "Simulate route disruption"}
               </Button>
             )}
           </div>

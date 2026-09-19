@@ -252,8 +252,10 @@ export function commuteFromPattern(group, now = Date.now()) {
 export function evidenceLine(commute, now = Date.now()) {
   const e = commute && commute.evidence;
   if (!e) return "";
+  if (typeof e === "string") return e;
+  if (e.text) return e.text;
   const days = Math.max(1, Math.round((now - e.lastSeen) / (24 * 60 * 60 * 1000)));
   const when = days <= 1 ? "today" : days < 7 ? `${days} days ago` : days < 14 ? "last week" : `${Math.round(days / 7)} weeks ago`;
-  const span = e.dayClass === "weekend" ? "weekends" : e.days.length >= 4 ? "most weekdays" : e.days.join(", ");
-  return `Seen ${e.count} times on ${span}, most recently ${when}.`;
+  const span = e.dayClass === "weekend" ? "weekends" : (e.days && e.days.length >= 4) ? "most weekdays" : (e.days ? e.days.join(", ") : "regular days");
+  return `Seen ${e.count || "several"} times on ${span}${e.lastSeen ? `, most recently ${when}` : ""}.`;
 }

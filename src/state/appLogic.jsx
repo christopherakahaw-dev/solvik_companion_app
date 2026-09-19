@@ -72,7 +72,9 @@ const ALERT_POLL_MS = 3 * 60 * 1000;
 // fails, and a way to seed the memory. Off unless VITE_DEMO_MODE says so.
 const DEMO_MODE = (() => {
   try {
-    return String(import.meta.env.VITE_DEMO_MODE || "").toLowerCase() === "1";
+    const fromEnv = String(import.meta.env.VITE_DEMO_MODE || "").toLowerCase() === "1";
+    const fromParam = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("demo") === "1";
+    return fromEnv || fromParam || !!import.meta.env.DEV;
   } catch {
     return false;
   }
@@ -171,11 +173,17 @@ export class AppLogic extends Component {
     readAlerts: loadReadAlerts(),
     crowd: { stations: [], slots: [], at: null, pending: false, error: null },
     faults: { items: [], pending: false, error: null },
+    dismissedAlerts: [],
+    demoAlertActive: false,
     stop: { data: null, pending: false, error: null, requested: false },
     nearbyStops: { items: [], pending: false, error: null, requested: false },
   };
 
   componentDidMount() {
+    if (typeof window !== "undefined") {
+      window.solvikSeedTrips = this.seedSampleTrips;
+      window.solvikSimulateDisruption = this.toggleDemoAlert;
+    }
     this._unsubHeading = subscribeHeading((heading) => {
       if (this.state.userHeading !== heading) {
         this.setState({ userHeading: heading });
@@ -921,7 +929,11 @@ export class AppLogic extends Component {
     const fromCommutes = (this.state.savedList || []).flatMap((c) => c.legs || []);
     const fromJourneys = (this.state.journeys || []).filter((j) => j.started).flatMap((j) => j.legs || []);
     const fromOutlook = ((this.state.outlook && this.state.outlook.itinerary) || {}).legs || [];
-    return [...new Set([...fromCommutes, ...fromJourneys, ...fromOutlook, ...linesForPlaces(this.myPlaces())].map((l) => String(l).toUpperCase()))];
+    const fromRoutines = (this.state.aiMemory?.routines || []).flatMap((r) => {
+      const matchJ = (this.state.journeys || []).find((j) => j.toName === r.toName || j.fromName === r.fromName);
+      return matchJ?.legs || [];
+    });
+    return [...new Set([...fromCommutes, ...fromJourneys, ...fromOutlook, ...fromRoutines, ...linesForPlaces(this.myPlaces())].map((l) => String(l).toUpperCase()))];
   }
 
   // Somewhere you go regularly — two visits on two days is the whole bar,
@@ -941,10 +953,16 @@ export class AppLogic extends Component {
   // a bare line code means nothing until it is attached to somewhere you go.
   placesOnLine(item) {
     if (!canonicalLine(item && item.line)) return [];
-    return this.myPlaces()
+    const fromPlaces = this.myPlaces()
       .filter((place) => place.lines.some((line) => sameLine(line, item.line)))
-      .map((place) => place.name)
-      .filter(Boolean);
+      .map((place) => place.name);
+    const fromRoutines = (this.state.aiMemory?.routines || [])
+      .filter((r) => {
+        const matchJ = (this.state.journeys || []).find((j) => j.toName === r.toName || j.fromName === r.fromName);
+        return (matchJ?.legs || []).some((l) => sameLine(l, item.line));
+      })
+      .map((r) => r.toName);
+    return [...new Set([...fromPlaces, ...fromRoutines])].filter(Boolean);
   }
 
   // Alerts are re-read while the app is open, and a new one on a line you use
@@ -1023,10 +1041,58 @@ export class AppLogic extends Component {
     return { bus: "Bus", train: "Train", transit: "Transit", walk: "Walk", cycle: "Cycle", express: "Express" }[mode] || "Transit";
   }
 
+  commuteFromRoutine(routine, journeys = []) {
+    if (!routine) return null;
+    const match = (journeys || []).find((j) =>
+      (j.fromName && routine.fromName && j.fromName.toLowerCase().includes(routine.fromName.toLowerCase())) ||
+      (j.toName && routine.toName && j.toName.toLowerCase().includes(routine.toName.toLowerCase()))
+    ) || journeys[0];
+
+    const fromLL = match?.fromLL || null;
+    const toLL = match?.toLL || null;
+    if (!fromLL || !toLL) return null;
+
+    const round = (ll) => `${ll[0].toFixed(3)},${ll[1].toFixed(3)}`;
+    const dayClass = routine.days === "weekend" ? "weekend" : "weekday";
+    const signature = `${round(fromLL)}>${round(toLL)}|${dayClass}`;
+
+    const fromId = `ai-from:${signature}`;
+    const toId = `ai-to:${signature}`;
+
+    const days = routine.days === "weekend" ? ["Sat", "Sun"]
+      : routine.days === "everyday" ? ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+      : ["Mon", "Tue", "Wed", "Thu", "Fri"];
+
+    let mins = 510;
+    if (routine.departureTime) {
+      const m = /(\d{1,2}):(\d{2})/.exec(routine.departureTime);
+      if (m) mins = Number(m[1]) * 60 + Number(m[2]);
+    }
+
+    return {
+      from: fromId,
+      to: toId,
+      fromPlace: { id: fromId, label: routine.fromName || "Start", place: routine.fromName || "Learned from your trips", ll: fromLL },
+      toPlace: { id: toId, label: routine.toName || "Destination", place: routine.toName || "Learned from your trips", ll: toLL },
+      days,
+      mins,
+      mode: routine.mode || "Transit",
+      legs: match?.legs || [],
+      arriveBy: null,
+      source: "ai",
+      signature,
+      addedAt: Date.now(),
+      evidence: {
+        text: routine.evidence || "Learned by AI from your deliberate trips.",
+        days,
+        dayClass,
+      },
+    };
+  }
+
   // The raw journey records remain in this browser. When Gemini is configured,
-  // a small deliberate-trip summary is sent for preference analysis and only
-  // the returned insight is stored locally. Deterministic pattern detection
-  // below remains the authority for creating and retiring watched commutes.
+  // a deliberate-trip summary is sent for routine and preference analysis and
+  // recurring routines are promoted to saved commutes.
   refreshAiMemory = () => {
     const journeys = (this.state.journeys || []).filter((journey) => journey?.started).slice(0, 40);
     if (journeys.length < 2) return;
@@ -1037,6 +1103,8 @@ export class AppLogic extends Component {
         at: journey.at,
         fromName: journey.fromName,
         toName: journey.toName,
+        fromLL: journey.fromLL,
+        toLL: journey.toLL,
         mode: journey.mode,
         legs: journey.legs,
         completed: journey.completed,
@@ -1056,6 +1124,10 @@ export class AppLogic extends Component {
         const insight = result.insight ? { ...result.insight, model: result.model || "Gemini" } : null;
         if (insight) store(KEYS.aiMemory, insight);
         this.setState({ aiMemory: insight, aiMemoryStatus: "ready" });
+
+        if (insight && Array.isArray(insight.routines) && insight.routines.length) {
+          this.flash(`AI learned ${insight.routines.length} frequent travel routine${insight.routines.length === 1 ? "" : "s"}`);
+        }
       })
       .catch(() => {
         if (this._aiMemoryKey === key) this.setState({ aiMemoryStatus: "unavailable" });
@@ -1145,38 +1217,10 @@ export class AppLogic extends Component {
       });
   };
 
-  // A pattern strong enough to act on becomes a watched commute on its own —
-  // and says so, with the evidence, and an Undo. Suggesting would be safer but
-  // would put the work back on the user; adding without a word would leave a
-  // commute nobody could account for.
+  // Learned commutes are managed through AI memory analysis rather than
+  // deterministic clustering heuristics.
   reviewPatterns = () => {
-    const s = this.state;
-    const journeys = s.journeys || [];
     this.refreshAiMemory();
-    // Retire before promoting, so a routine that moved is replaced in one pass
-    // rather than leaving the old commute sitting next to the new one.
-    const stale = staleCommutes(s.savedList, journeys);
-    const kept = stale.length ? (s.savedList || []).filter((c) => !stale.includes(c)) : s.savedList || [];
-    const pattern = inferCommutes({ journeys, existing: kept, rejected: s.patternsRejected || [] })[0];
-    const commute = pattern ? commuteFromPattern(pattern) : null;
-    if (!commute && !stale.length) return;
-
-    this.setState({
-      savedList: commute ? kept.concat([commute]) : kept,
-      ...(commute ? { justAdded: { signature: commute.signature, at: Date.now() } } : {}),
-    });
-
-    // A commute that disappears without a word is the thing the evidence line
-    // exists to prevent, so a retirement is announced the same as a promotion.
-    const name = (c) => `${(c.fromPlace && c.fromPlace.label) || "start"} → ${(c.toPlace && c.toPlace.label) || "destination"}`;
-    const dropped = stale.length === 1 ? name(stale[0]) : `${stale.length} learned trips`;
-    this.flash(
-      commute && stale.length
-        ? `Your routine changed · now watching ${name(commute)}`
-        : commute
-          ? `Learned your ${name(commute)} trip`
-          : `Stopped watching ${dropped} · no trips in ${Math.round(RETIRE_MS / 86400000)} days`
-    );
   };
 
   // Undo removes the commute and remembers the refusal, so the same pattern is
@@ -1219,6 +1263,132 @@ export class AppLogic extends Component {
     }));
     this.flash("Cleared everything Solvik had learned");
   };
+
+  toggleDemoAlert = () => {
+    const isSimulated = this.state.demoAlertActive;
+    if (isSimulated) {
+      this.setState((st) => ({
+        demoAlertActive: false,
+        faults: {
+          ...st.faults,
+          items: (st.faults.items || []).filter((f) => f.id !== "demo-sim-nsl"),
+        },
+      }));
+      this.flash("Cleared simulated disruption");
+    } else {
+      const simFault = {
+        id: "demo-sim-nsl",
+        line: "NSL",
+        title: "Track fault between Yishun and Bishan",
+        detail: "Train service delayed by 15 mins. Free bridging bus services available between Yishun and Bishan.",
+        sev: "disrupted",
+        tag: "Track fault",
+      };
+      this.setState(
+        (st) => ({
+          demoAlertActive: true,
+          faults: {
+            ...st.faults,
+            items: [simFault, ...(st.faults.items || []).filter((f) => f.id !== "demo-sim-nsl")],
+          },
+        }),
+        () => {
+          this.flash("Simulated: Track fault on NSL (Yishun ↔ Bishan)");
+        }
+      );
+    }
+  };
+
+  routineAlertVals(s) {
+    const activeFaults = ((s.faults && s.faults.items) || []).filter(
+      (f) => !(s.dismissedAlerts || []).includes(f.id)
+    );
+    if (!activeFaults.length) return null;
+
+    const routines = s.aiMemory && Array.isArray(s.aiMemory.routines) ? s.aiMemory.routines : [];
+    const journeys = s.journeys || [];
+
+    for (const fault of activeFaults) {
+      // 1. Check matching AI routines first
+      for (const routine of routines) {
+        const matchJ =
+          journeys.find(
+            (j) =>
+              (j.toName === routine.toName || j.fromName === routine.fromName) &&
+              (j.legs || []).some((l) => sameLine(l, fault.line))
+          ) ||
+          journeys.find((j) => j.toName === routine.toName || j.fromName === routine.fromName);
+
+        const touchesRoutine =
+          (matchJ && (matchJ.legs || []).some((l) => sameLine(l, fault.line))) ||
+          (fault.title &&
+            (fault.title.toLowerCase().includes((routine.toName || "").toLowerCase()) ||
+              fault.title.toLowerCase().includes((routine.fromName || "").toLowerCase()))) ||
+          (fault.line && routine.evidence && routine.evidence.toUpperCase().includes(fault.line.toUpperCase()));
+
+        if (touchesRoutine) {
+          const fromLL = matchJ?.fromLL || null;
+          const toLL = matchJ?.toLL || null;
+          return {
+            faultId: fault.id,
+            line: fault.line,
+            kicker: "Routine Watch · Disruption Alert",
+            title: `Disruption on your usual route to ${routine.toName}`,
+            detail: `${fault.title}. ${fault.detail || ""}`.trim(),
+            advice: `Disruption reported on ${fault.line}. Solvik noticed you frequently travel this corridor. Alternative routes are available.`,
+            actionLabel: "Check alternative routes",
+            action: () => {
+              this.setState({ screen: "map", tripMode: "reroute", tripAvoid: fault.line });
+              if (toLL) {
+                this.chooseDest(
+                  { name: routine.toName, detail: routine.toName, ll: toLL, kind: "Place" },
+                  fromLL ? { routeOrigin: { name: routine.fromName, address: routine.fromName, ll: fromLL } } : undefined
+                );
+              }
+            },
+            addCommute: () => {
+              const c = this.commuteFromRoutine(routine, journeys);
+              if (c) {
+                const updated = (s.savedList || []).concat(c);
+                this.setState({ savedList: updated }, () => store(KEYS.savedList, updated));
+                this.flash(`Saved ${c.fromPlace?.label || c.from} → ${c.toPlace?.label || c.to} to Watched Commutes`);
+              }
+            },
+            dismiss: () => {
+              this.setState((st) => ({ dismissedAlerts: [...(st.dismissedAlerts || []), fault.id] }));
+            },
+          };
+        }
+      }
+
+      // 2. Check matching learned places
+      const placesOnThis = this.placesOnLine(fault);
+      if (placesOnThis.length > 0) {
+        const placeName = placesOnThis[0];
+        const hitPlace = this.myPlaces().find((p) => p.name === placeName);
+        return {
+          faultId: fault.id,
+          line: fault.line,
+          kicker: "Heads up · Frequent Place",
+          title: `Disruption affecting travel to ${placeName}`,
+          detail: `${fault.title}. ${fault.detail || ""}`.trim(),
+          advice: `Disruption reported on ${fault.line}, which you use to reach ${placeName}.`,
+          actionLabel: "View on Map",
+          action: () => {
+            this.setState({ screen: "map", tripMode: "reroute", tripAvoid: fault.line });
+            if (hitPlace && hitPlace.ll) {
+              this.chooseDest({ name: hitPlace.name, detail: hitPlace.name, ll: hitPlace.ll, kind: "Place" });
+            }
+          },
+          dismiss: () => {
+            this.setState((st) => ({ dismissedAlerts: [...(st.dismissedAlerts || []), fault.id] }));
+          },
+        };
+      }
+    }
+
+    return null;
+  }
 
   // "4 min ago" — for report ages, which are always inside the 30-minute window.
   relTimeOf(at) {
@@ -1310,10 +1480,13 @@ export class AppLogic extends Component {
     const persona = personaOf((s.routingPreferences || {}).persona);
     const weather = s.weather || {};
     const arriveAt = view && view.arriveAt ? view.arriveAt : Date.now() + (view ? view.durationMins : 0) * 60000;
+    const isNearTerm = Math.abs(arriveAt - Date.now()) <= 2 * 3600_000;
     const wxForecast = forecastAt({ outlook: weather.outlook, ll: t.ll, at: arriveAt });
+    const wxDestNow = isNearTerm ? nowcastAt(weather.nowcast, t.ll) : null;
+    const wxEffective = wxDestNow || wxForecast;
     const wxNow = nowcastAt(weather.nowcast, f.ll);
-    const wxWet = !!(wxForecast && isWet(wxForecast.condition));
-    const wxWalk = walkAdjustment({ walkSecs: (itinerary && itinerary.walkSecs) || 0, condition: wxForecast && wxForecast.condition });
+    const wxWet = !!(wxEffective && isWet(wxEffective.condition));
+    const wxWalk = walkAdjustment({ walkSecs: (itinerary && itinerary.walkSecs) || 0, condition: wxEffective && wxEffective.condition });
     const rrOption = reroute.option || null;
     const rrNone = !!(reroute.avoided && reroute.avoided.none);
     const rrDelta = rrOption && view ? rrOption.mins - view.durationMins : null;
@@ -1474,14 +1647,13 @@ export class AppLogic extends Component {
       // Weather. The brief names rain as something that must change the
       // recommendation, so this both warns and shifts the mode: a wet walk is
       // ranked differently, and the card says that is why.
-      wxHas: !!wxForecast,
+      wxHas: !!wxEffective,
       wxWet,
-      wxTitle: wxForecast ? (wxWet ? `${wxForecast.text} when you arrive` : wxForecast.text) : "",
-      wxDetail: wxForecast ? weatherLine({ forecast: wxForecast, walkSecs: (itinerary && itinerary.walkSecs) || 0 }) : "",
+      wxTitle: wxEffective ? (wxWet ? `${wxEffective.text} when you arrive` : wxEffective.text) : "",
+      wxDetail: wxEffective ? weatherLine({ forecast: wxEffective, walkSecs: (itinerary && itinerary.walkSecs) || 0 }) : "",
       wxNote: [
         wxNow && isWet(wxNow.condition) ? `${wxNow.text} at ${wxNow.name} right now.` : "",
-        // Said at the feed's own resolution — periods of hours, never a minute.
-        wxForecast ? "From NEA's 24-hour forecast, published in multi-hour periods." : "",
+        wxDestNow ? "From NEA's 2-hour localized nowcast." : wxForecast ? "From NEA's 24-hour forecast, published in multi-hour periods." : "",
       ].filter(Boolean).join(" "),
 
       // What LTA has activated. Shown above our own alternative because it is
@@ -1654,7 +1826,7 @@ export class AppLogic extends Component {
           : ds.length === 2 && ds.indexOf("Sat") >= 0 && ds.indexOf("Sun") >= 0 ? "weekends"
           : DAYS.filter((d) => ds.indexOf(d) >= 0).join(", ");
         const anchored = c.arriveBy != null ? "arrive by " + clock(c.arriveBy) : "leave at " + clock(c.mins);
-        const learned = c.source === "auto" ? evidenceLine(c) : "";
+        const learned = (c.source === "auto" || c.source === "ai") ? evidenceLine(c) : "";
         return {
           name: f.label + " → " + t.label,
           from: f.label,
@@ -1736,6 +1908,22 @@ export class AppLogic extends Component {
       forgetEverything: this.forgetEverything,
       canSeedTrips: DEMO_MODE && !(s.journeys || []).length,
       seedSampleTrips: this.seedSampleTrips,
+      canToggleDemoAlert: DEMO_MODE,
+      demoAlertActive: !!s.demoAlertActive,
+      toggleDemoAlert: this.toggleDemoAlert,
+      routineAlert: this.routineAlertVals(s),
+      memoryRoutines: ((s.aiMemory && Array.isArray(s.aiMemory.routines)) ? s.aiMemory.routines : []).map((r) => ({
+        name: `${r.fromName} → ${r.toName}`,
+        detail: `${r.days === "weekend" ? "Weekends" : r.days === "everyday" ? "Every day" : "Weekdays"} · ${r.departureTime || "Flexible"} · ${r.mode || "Transit"}`,
+        add: () => {
+          const c = this.commuteFromRoutine(r, s.journeys || []);
+          if (c) {
+            const updated = (s.savedList || []).concat(c);
+            this.setState({ savedList: updated }, () => store(KEYS.savedList, updated));
+            this.flash(`Saved ${c.fromPlace?.label || c.from} → ${c.toPlace?.label || c.to} to Watched Commutes`);
+          }
+        },
+      })),
       // The card shown when a commute has just been learned.
       justAdded: (() => {
         const mark = s.justAdded;

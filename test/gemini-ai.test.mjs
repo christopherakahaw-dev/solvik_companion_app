@@ -128,3 +128,98 @@ test("unsupported schema keywords are removed only from the Gemini wire schema",
   assert.equal("additionalProperties" in wire.properties.nested, false);
   assert.equal(source.additionalProperties, false, "the validation source schema stays strict");
 });
+
+test("cleanMemoryInput preserves coordinate endpoints and memory handler returns routines", async () => {
+  const cleaned = cleanMemoryInput({
+    persona: "punctual",
+    journeys: [
+      {
+        at: 1700000000000,
+        fromName: "Yishun",
+        toName: "Raffles Place",
+        fromLL: [1.4294, 103.835],
+        toLL: [1.2840, 103.8515],
+        mode: "Transit",
+        legs: ["NSL"],
+        completed: true,
+      },
+      {
+        at: 1700086400000,
+        fromName: "Yishun",
+        toName: "Raffles Place",
+        fromLL: [1.4294, 103.835],
+        toLL: [1.2840, 103.8515],
+        mode: "Transit",
+        legs: ["NSL"],
+        completed: true,
+      },
+    ],
+  });
+  assert.equal(cleaned.journeys.length, 2);
+  assert.deepEqual(cleaned.journeys[0].fromLL, [1.4294, 103.835]);
+  assert.deepEqual(cleaned.journeys[0].toLL, [1.2840, 103.8515]);
+
+  // Test handler parses routines in insight
+  const oldKey = process.env.GEMINI_API_KEY;
+  const realFetch = globalThis.fetch;
+  process.env.GEMINI_API_KEY = "server-secret";
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    json: async () => ({
+      candidates: [{
+        content: {
+          parts: [{
+            text: JSON.stringify({
+              summary: "Regular weekday commute to Raffles Place.",
+              patterns: ["Departs around 08:30"],
+              confidence: "high",
+              preferences: { preferredModes: ["Transit"], avoidsCrowds: true, weatherSensitive: true },
+              routines: [{
+                fromName: "Yishun",
+                toName: "Raffles Place",
+                mode: "Transit",
+                days: "weekday",
+                departureTime: "08:30",
+                evidence: "Taken consistently on 4 weekday mornings.",
+              }],
+            }),
+          }],
+        },
+      }],
+    }),
+  });
+  try {
+    const res = responseRecorder();
+    await aiHandler({ method: "POST", body: { action: "memory", journeys: cleaned.journeys } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.configured, true);
+    assert.equal(res.body.insight.routines.length, 1);
+    assert.equal(res.body.insight.routines[0].fromName, "Yishun");
+    assert.equal(res.body.insight.routines[0].departureTime, "08:30");
+  } finally {
+    globalThis.fetch = realFetch;
+    if (oldKey == null) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
+  }
+});
+
+test("aiHandler returns demo recorded fallback when Gemini is unconfigured and demo mode is active", async () => {
+  const oldKey = process.env.GEMINI_API_KEY;
+  const oldDemo = process.env.DEMO_MODE;
+  delete process.env.GEMINI_API_KEY;
+  process.env.DEMO_MODE = "1";
+  try {
+    const res = responseRecorder();
+    await aiHandler({ method: "POST", body: { action: "memory", journeys: [] } }, res);
+    assert.equal(res.statusCode, 200);
+    assert.equal(res.body.configured, true);
+    assert.match(res.body.model, /Demo/);
+    assert.equal(res.body.insight.routines.length, 1);
+    assert.equal(res.body.insight.routines[0].fromName, "Yishun");
+    assert.equal(res.body.insight.routines[0].toName, "Raffles Place");
+  } finally {
+    if (oldKey == null) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = oldKey;
+    if (oldDemo == null) delete process.env.DEMO_MODE; else process.env.DEMO_MODE = oldDemo;
+  }
+});
+
