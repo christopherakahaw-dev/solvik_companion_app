@@ -34,15 +34,15 @@ export function RewardsScreen({ v }) {
             <div style={v.tierBarStyle} />
           </div>
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 9, font: "var(--weight-regular) 11px/1 var(--font-body)", opacity: 0.76 }}>
-            <span>Silver</span>
-            <span>{v.toGold} points to Gold</span>
-            <span>Gold</span>
+            <span>{v.tierFrom}</span>
+            <span>{v.tierGapLine}</span>
+            <span>{v.tierTo || ""}</span>
           </div>
         </div>
       </div>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 2px" }}>
-        <span style={{ font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--sand-200)", borderRadius: 999, padding: "5px 9px" }}>
+        <span style={{ flex: "none", whiteSpace: "nowrap", font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--sand-200)", borderRadius: 999, padding: "5px 9px" }}>
           Sample data
         </span>
         <span style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>

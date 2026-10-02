@@ -406,7 +406,7 @@ npm run diagnose -- --coverage
 
 LTA's crowd feed identifies stations by code only (`NS17`), so each one needs a
 position before it can be drawn. Those positions live in
-`api/_lib/stations.json`, resolved once through OneMap by:
+`shared/stations.json` (read by the server for crowding circles and by the app for station names), resolved once through OneMap by:
 
 ```bash
 npm run stations

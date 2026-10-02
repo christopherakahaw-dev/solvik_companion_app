@@ -2,7 +2,7 @@
 // to a name and coordinates.
 //
 // The positions come from OneMap, but they are resolved once and kept in
-// stations.json rather than looked up per request: LTA publishes ~224 codes,
+// shared/stations.json rather than looked up per request: LTA publishes ~224 codes,
 // and searching for every one of them inside a single request is both slow and
 // unreliable — a live probe found 218 of 224 being dropped, which showed on the
 // map as six crowding circles instead of a network. Station geography is stable
@@ -13,7 +13,7 @@
 // still fall back to a live search, and a code that resolves to nothing is
 // dropped rather than guessed.
 import { oneMapSearch } from "./onemap.js";
-import directory from "./stations.json" with { type: "json" };
+import directory from "../../shared/stations.json" with { type: "json" };
 
 const cache = new Map(); // code -> { code, name, lat, lng } | null
 const CONCURRENCY = 6;

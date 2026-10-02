@@ -566,7 +566,7 @@ export function MapScreen({ v }) {
               ))}
             </div>
             <div style={{ flex: "none", padding: "8px 0 14px", font: "var(--weight-regular) 10px/1.3 var(--font-body)", color: "var(--text-muted)", textAlign: "center", background: "var(--surface-card)" }}>
-              Map data © OneMap · Singapore Land Authority
+              Routes from OneMap · Singapore Land Authority
             </div>
           </section>
         </div>
@@ -757,11 +757,9 @@ export function MapScreen({ v }) {
         </div>
       )}
 
-      {v.showMapAttrib && (
-        <div style={{ position: "absolute", left: 16, bottom: 92, font: "var(--weight-regular) 10px/1.3 var(--font-body)", color: "var(--sand-700)", textShadow: "0 1px 2px rgba(255,255,255,.9)" }}>
-          Map data © OneMap · Singapore Land Authority
-        </div>
-      )}
+      {/* The map credit is Leaflet's own control, which names whichever base is
+          actually showing. A fixed "Map data © OneMap" line used to sit here
+          too: it overlapped that control and was wrong on the OSM base. */}
     </div>
   );
 }

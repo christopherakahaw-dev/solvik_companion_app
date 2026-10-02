@@ -546,7 +546,7 @@ test("deleting Home clears it as the active route origin", async ({ page }) => {
 test("manual commutes keep both endpoints after reload", async ({ page }) => {
   await setup(page, { home });
   await page.getByRole("button", { name: "Plan", exact: true }).click();
-  await page.getByRole("button", { name: "Add or edit a watched commute" }).click();
+  await page.getByRole("button", { name: "Add a watched commute" }).click();
   const dialog = page.getByRole("dialog", { name: "Add a commute" });
   await expect(dialog.getByRole("button", { name: "Pick places and days" })).toBeDisabled();
   await dialog.getByRole("button", { name: "Search destination", exact: true }).click();

@@ -28,6 +28,7 @@ import { getPosition, watchPosition, clearWatch, messageForError, getLastPositio
 import { acceptFix, alongMAtTime, coordAt, stepAtTime, timeAtAlongM, STALE_FIX_MS } from "../lib/navProgress";
 import { metresBetween, bearingBetween } from "../lib/geometry";
 import { subscribeHeading } from "../lib/compass";
+import { affectedDirection, describeAffectedSegment } from "../lib/stationNames";
 import { resolveRouteOrigin } from "../lib/routeOrigin";
 import { routeFailure, routeRecoveryModes } from "../lib/routeFailure";
 import { addressDetail, durationLabel, forecastSlots, remapOptionLabels, singaporeClock } from "../lib/display";
@@ -2613,11 +2614,8 @@ export class AppLogic extends Component {
           tag: "Delay",
           sev: "warn",
           time: "Now",
-          title: `${seg.Line || "Line"} — ${seg.Direction || "service"} affected`,
-          detail: [
-            seg.StartStation && seg.EndStation ? `Between ${seg.StartStation} and ${seg.EndStation}.` : "",
-            seg.Stations ? `Stations: ${seg.Stations}` : "",
-          ].filter(Boolean).join(" "),
+          title: `${seg.Line || "Line"} · ${affectedDirection(seg.Direction)}`,
+          detail: describeAffectedSegment(seg),
           // Kept so a commuter report at one of these stations can be matched
           // against LTA's own record of the same problem.
           stations: String(seg.Stations || "").split(",").map((c) => c.trim().toUpperCase()).filter(Boolean),
@@ -3715,7 +3713,6 @@ export class AppLogic extends Component {
       backToSearch: () => this.chooseDest(null),
       pinCoord: s.pin ? s.pin.ll : null,
       hasPin: !!s.pin && !dest && !s.fcPin && !(s.searchTarget === "area" && s.searchOpen),
-      showMapAttrib: !dest && !s.pin && !s.fcPin && s.crowdOn === false,
       showPinHint: !s.pin && !dest && !s.searchOpen && !q && !s.fcPin && s.crowdOn === false,
       pinName: s.pin ? s.pin.name : "",
       pinDetail: s.pin ? s.pin.detail : "",
@@ -4015,10 +4012,23 @@ export class AppLogic extends Component {
       pendingLine: pendingPoints > 0
         ? `${pendingPoints.toLocaleString()} points waiting on someone else to report the same thing, or on LTA confirming it.`
         : "",
-      // Derived from points that are now real, rather than a fixed label.
-      tierName: confirmedPoints >= 3100 ? "Gold tier" : confirmedPoints >= 1000 ? "Silver tier" : "Bronze tier",
-      toGold: Math.max(0, 3100 - confirmedPoints).toLocaleString(),
-      tierBarStyle: { width: Math.round(Math.max(0, Math.min(1, (confirmedPoints - 1000) / 2100)) * 100) + "%", height: "100%", background: "var(--crowd-light)", borderRadius: 999, transition: "width var(--dur-slow) var(--ease-out)" },
+      // Derived from points that are now real, rather than a fixed label. The
+      // bar runs from the tier you are in to the next one; it used to always
+      // read "Silver … Gold" under a Bronze badge.
+      ...(() => {
+        const tiers = [{ name: "Bronze", at: 0 }, { name: "Silver", at: 1000 }, { name: "Gold", at: 3100 }];
+        const index = tiers.reduce((found, tier, i) => (confirmedPoints >= tier.at ? i : found), 0);
+        const current = tiers[index];
+        const next = tiers[index + 1] || null;
+        const progress = next ? (confirmedPoints - current.at) / (next.at - current.at) : 1;
+        return {
+          tierName: `${current.name} tier`,
+          tierFrom: current.name,
+          tierTo: next ? next.name : null,
+          tierGapLine: next ? `${(next.at - confirmedPoints).toLocaleString()} points to ${next.name}` : "Top tier reached",
+          tierBarStyle: { width: Math.round(Math.max(0, Math.min(1, progress)) * 100) + "%", height: "100%", background: "var(--crowd-light)", borderRadius: 999, transition: "width var(--dur-slow) var(--ease-out)" },
+        };
+      })(),
       pointStats: [
         { icon: "megaphone", value: String(mine.length), label: "Reports saved" },
         { icon: "badge-check", value: String(mine.filter((r) => r.state === "confirmed").length), label: "Checks passed" },

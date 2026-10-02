@@ -1,4 +1,4 @@
-// Builds api/_lib/stations.json: every station code LTA's crowd feed publishes,
+// Builds shared/stations.json: every station code LTA's crowd feed publishes,
 // resolved once to a name and coordinates through OneMap.
 //
 // Run it from the app/ directory, with your .env in place:
@@ -23,7 +23,7 @@ try {
   console.log("note: no .env next to package.json\n");
 }
 
-const out = new URL("../api/_lib/stations.json", import.meta.url);
+const out = new URL("../shared/stations.json", import.meta.url);
 const existing = (() => {
   try {
     return JSON.parse(readFileSync(out, "utf8"));
@@ -108,5 +108,5 @@ for (const [i, code] of list.entries()) {
 const ordered = Object.fromEntries(Object.keys(resolved).sort().map((k) => [k, resolved[k]]));
 writeFileSync(out, `${JSON.stringify(ordered, null, 2)}\n`);
 
-console.log(`\nResolved ${found}/${list.size || list.length} · written to api/_lib/stations.json`);
+console.log(`\nResolved ${found}/${list.size || list.length} · written to shared/stations.json`);
 if (failed.length) console.log(`Still unresolved (the app will search for these live): ${failed.join(", ")}`);

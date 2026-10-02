@@ -5,7 +5,7 @@ import { loadPreferences, savePreferences } from '../src/lib/storage.js';
 
 test('PERSONAS have been updated to the requested travel style names', () => {
   assert.equal(PERSONAS.fixed.name, 'Fixed Schedule');
-  assert.equal(PERSONAS.flexible.name, 'Flexible and Multi-Modal (Default)');
+  assert.equal(PERSONAS.flexible.name, 'Flexible and Multi-Modal');
   assert.equal(PERSONAS.stepFree.name, 'Easy and Accessible');
 });
 
