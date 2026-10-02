@@ -43,20 +43,26 @@ export function NavScreen({ v }) {
           <IconButton icon="x" label="End trip" tone="plain" size="md" onClick={v.endTrip} />
           <SolvikBrand compact className="sv-nav-brand" />
           <div style={{ font: "var(--weight-bold) 12px/1 var(--font-body)", color: "var(--text-strong)", background: "var(--surface-card)", borderRadius: 999, padding: "9px 15px", boxShadow: "var(--shadow-nav)", whiteSpace: "nowrap", flex: "none" }}>{v.navStepLabel}</div>
-          {v.navTrackNote && (
-            <div
-              className="sv-nav-track-note"
-              style={{
-                font: "var(--weight-medium) 11px/1.2 var(--font-body)",
-                color: v.navTrackTone === "warn" ? "var(--crowd-busy)" : "var(--text-muted)",
-                background: "var(--surface-card)", borderRadius: 999, padding: "8px 12px",
-                boxShadow: "var(--shadow-nav)", minWidth: 0, textWrap: "pretty",
-              }}
-            >
-              {v.navTrackNote}
-            </div>
+          {/* One tap, always in reach: the sheet's own actions only show once it is expanded. */}
+          {v.navCanShare && (
+            <IconButton icon="share-2" label="Share ETA" tone="plain" size="md" onClick={v.navShare} style={{ marginLeft: "auto", flex: "none" }} />
           )}
         </div>
+        {/* Its own row: squeezed in beside the buttons it wrapped to one word per line on small phones. */}
+        {v.navTrackNote && (
+          <div
+            className="sv-nav-track-note"
+            style={{
+              alignSelf: "flex-start",
+              font: "var(--weight-medium) 11px/1.2 var(--font-body)",
+              color: v.navTrackTone === "warn" ? "var(--crowd-busy)" : "var(--text-muted)",
+              background: "var(--surface-card)", borderRadius: 999, padding: "8px 12px",
+              boxShadow: "var(--shadow-nav)", textWrap: "pretty",
+            }}
+          >
+            {v.navTrackNote}
+          </div>
+        )}
       </div>
 
       <div ref={cardRef} className={`sv-nav-sheet${v.navSheetCompact ? " is-compact" : ""}`} style={{ ...v.navSheetStyle, touchAction: v.navSheetExpanded ? "auto" : "pan-x" }}

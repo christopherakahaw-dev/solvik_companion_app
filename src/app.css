@@ -882,7 +882,7 @@
 .sv-nav-top { gap: 6px !important; pointer-events: none; }
 .sv-nav-meta-row { gap: 6px !important; }
 .sv-nav-meta-row > * { pointer-events: auto; }
-.sv-nav-track-note { max-width: min(180px, 42vw); }
+.sv-nav-track-note { max-width: 100%; }
 
 .sv-nav-sheet { will-change: height; }
 .sv-nav-summary { flex: none; min-width: 0; color: var(--text-on-accent); background: var(--accent); border-radius: 16px; padding: 10px 12px 9px; box-shadow: 0 6px 18px rgba(41,76,54,.16); }

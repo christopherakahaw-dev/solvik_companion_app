@@ -1164,3 +1164,33 @@ test("a rejected report is not saved and says which check failed", async ({ page
   await expect(page.getByText(/No points — this report wasn't saved/)).toBeVisible();
   await noOverflow(page);
 });
+
+test("during a trip, Share ETA hands an honest arrival time to the phone's share sheet", async ({ page }, info) => {
+  await page.addInitScript(() => {
+    window.__shared = [];
+    navigator.share = async (data) => { window.__shared.push(data); };
+  });
+  await setup(page, { home, school }, { tripOptions: [{ ...option, walkOnly: false, transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 0 }] }] });
+  await pickDestination(page);
+  await page.getByRole("button", { name: "Go", exact: true }).click();
+  await noOverflow(page);
+  await page.screenshot({ path: info.outputPath("share-eta.png") });
+  await page.getByRole("button", { name: "Share ETA" }).click();
+  await expect.poll(() => page.evaluate(() => window.__shared.length)).toBe(1);
+  const { text } = await page.evaluate(() => window.__shared[0]);
+  expect(text).toMatch(/^On my way to CLEMENTI ARCADE, arriving around \d{2}:\d{2} \(Solvik estimate( from the timetable)?\)\.$/);
+});
+
+test("without a share sheet, the ETA is copied for pasting instead", async ({ page }) => {
+  await page.addInitScript(() => {
+    window.__copied = [];
+    Object.defineProperty(navigator, "share", { configurable: true, value: undefined });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async (text) => { window.__copied.push(text); } } });
+  });
+  await setup(page, { home, school }, { tripOptions: [{ ...option, walkOnly: false, transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 0 }] }] });
+  await pickDestination(page);
+  await page.getByRole("button", { name: "Go", exact: true }).click();
+  await page.getByRole("button", { name: "Share ETA" }).click();
+  await expect(page.getByText("ETA copied · paste it into any chat")).toBeVisible();
+  expect(await page.evaluate(() => window.__copied[0])).toMatch(/^On my way to CLEMENTI ARCADE/);
+});

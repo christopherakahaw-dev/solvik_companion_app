@@ -2927,6 +2927,27 @@ export class AppLogic extends Component {
     this.tt = setTimeout(() => this.setState({ toast: null }), 2600);
   };
 
+  // The phone's share sheet where there is one (most phones); otherwise the
+  // clipboard, so a desktop browser still gets something to paste.
+  shareEta = async (text) => {
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ text });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        this.flash("ETA copied · paste it into any chat");
+        return;
+      }
+      this.flash("Sharing isn't available in this browser");
+    } catch (error) {
+      // Closing the share sheet is a choice, not a failure.
+      if (error?.name === "AbortError") return;
+      this.flash("Couldn't share your ETA");
+    }
+  };
+
   redeemReward = (reward) => {
     let outcome = "insufficient";
     this.setState((state) => {
@@ -3329,6 +3350,13 @@ export class AppLogic extends Component {
       navStepLabel: arrived ? "Trip complete" : navArr.length ? "Step " + (navIdx + 1) + " of " + navArr.length : "Preparing trip",
       navEta: navOpt ? singaporeClock(Date.now() + Math.max(0, navTotal - navElapsed) * 1000) : "",
       navRemainLabel: arrived ? "Arrived · " + destShort : Math.max(1, Math.ceil((navTotal - navElapsed) / 60)) + " min left · " + destShort,
+      // Through the phone's own share sheet: Solvik sends nothing anywhere. The
+      // message says "around" and names Solvik as the source, because the time
+      // is an estimate (from the timetable until GPS places you on the route).
+      navCanShare: Boolean(navOpt) && !arrived,
+      navShare: () => this.shareEta(
+        `On my way to ${destShort}, arriving around ${singaporeClock(Date.now() + Math.max(0, navTotal - navElapsed) * 1000)} (Solvik estimate${navByGps ? "" : " from the timetable"}).`
+      ),
       navTrackNote,
       navTrackTone: s.navFixStatus === "denied" || navStale || s.navFixStatus === "off-route" ? "warn" : "muted",
       // The map follows the real position; where there isn't one, it frames the
