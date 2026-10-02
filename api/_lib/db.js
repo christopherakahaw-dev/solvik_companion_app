@@ -1,107 +1,58 @@
-// Persistent SQLite database storage for users, authentication, and synced preferences.
-// Uses Node's built-in node:sqlite (DatabaseSync) and node:crypto.
-import { DatabaseSync } from "node:sqlite";
+// Accounts: registration, sign-in, sessions and synced preferences.
+//
+// Where they are stored depends on the environment:
+//   - Supabase (SUPABASE_URL + SUPABASE_SECRET_KEY) — production, durable.
+//   - A local SQLite file under .data/ — development and tests only.
+// A Vercel deployment with no Supabase project configured refuses with
+// "Account sync is unavailable", which the client answers by keeping the
+// account on the device instead. It used to fall back to an in-memory SQLite
+// database there, which accepted registrations and then lost them on the next
+// cold start.
 import crypto from "node:crypto";
-import fs from "node:fs";
 import path from "node:path";
+import { createSupabaseStore, supabaseConfigFromEnv } from "./accounts/supabaseStore.js";
 
-let dbInstance = null;
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const USERNAME_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+// Errors carry the HTTP status the auth endpoint should answer with.
+function authError(message, httpStatus) {
+  const err = new Error(message);
+  err.httpStatus = httpStatus;
+  return err;
+}
+
+const INVALID_LOGIN = () => authError("Invalid username or password.", 401);
+
+let store = null;
 
 export function getDatabasePath() {
-  const customPath = process.env.SOLVIK_DB_PATH;
-  if (customPath) return customPath;
-
-  const dataDir = path.resolve(process.cwd(), ".data");
-  if (!fs.existsSync(dataDir)) {
-    try {
-      fs.mkdirSync(dataDir, { recursive: true });
-    } catch {
-      return ":memory:";
-    }
-  }
-  return path.join(dataDir, "solvik.db");
+  return process.env.SOLVIK_DB_PATH || path.resolve(process.cwd(), ".data", "solvik.db");
 }
 
-export function initDatabase(dbPath = getDatabasePath()) {
-  if (dbPath !== ":memory:") {
-    const parentDir = path.dirname(path.resolve(dbPath));
-    if (!fs.existsSync(parentDir)) {
-      try {
-        fs.mkdirSync(parentDir, { recursive: true });
-      } catch {
-        // ignore
-      }
-    }
+export async function getStore() {
+  if (store) return store;
+  const supabase = supabaseConfigFromEnv();
+  if (supabase) {
+    store = createSupabaseStore(supabase);
+    return store;
   }
-
-  const db = new DatabaseSync(dbPath);
-
-  try {
-    db.exec("PRAGMA journal_mode = WAL;");
-    db.exec("PRAGMA foreign_keys = ON;");
-  } catch {
-    // In-memory or restricted environments may ignore WAL
-  }
-
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      username TEXT UNIQUE NOT NULL COLLATE NOCASE,
-      password_hash TEXT NOT NULL,
-      salt TEXT NOT NULL,
-      preferences TEXT DEFAULT '{}',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
+  if (process.env.VERCEL) {
+    throw authError(
+      "Account sync is unavailable because this deployment has no account database configured. " +
+        "Continue as a guest, or set SUPABASE_URL and SUPABASE_SECRET_KEY.",
+      503
     );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      token TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL,
-      created_at INTEGER NOT NULL,
-      expires_at INTEGER NOT NULL,
-      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username);
-  `);
-
-  return db;
-}
-
-export function getDb() {
-  if (!dbInstance) {
-    try {
-      dbInstance = initDatabase();
-    } catch (error) {
-      // Vercel functions run on a read-only deployment filesystem. SQLite is
-      // suitable for local development, but production account sync needs a
-      // database adapter backed by a durable external service.
-      if (/readonly|read-only|SQLITE_READONLY/i.test(String(error?.message || error))) {
-        throw new Error(
-          "Account sync is unavailable because this deployment has no writable persistent database. " +
-          "Continue as a guest, or connect this app to a durable database service."
-        );
-      }
-      throw error;
-    }
   }
-  return dbInstance;
+  const { createSqliteStore } = await import("./accounts/sqliteStore.js");
+  store = createSqliteStore(getDatabasePath());
+  return store;
 }
 
-export function setDb(db) {
-  dbInstance = db;
-}
-
-export function closeDb() {
-  if (dbInstance) {
-    try {
-      dbInstance.close();
-    } catch {
-      // already closed
-    }
-    dbInstance = null;
-  }
+// For tests: swap in a store, or pass null to go back to the environment's.
+export function setStore(next) {
+  if (store && store !== next) store.close?.();
+  store = next;
 }
 
 export function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
@@ -118,140 +69,93 @@ export function generateToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+// Only a hash of each session token is stored, so a copy of the database —
+// like the one that was once committed to this repo — cannot sign anyone in.
+export function hashToken(token) {
+  return crypto.createHash("sha256").update(String(token)).digest("hex");
+}
 
-export function registerUser(username, password, initialPreferences = {}) {
+async function startSession(db, userId, now) {
+  const token = generateToken();
+  await db.insertSession({ token_hash: hashToken(token), user_id: userId, created_at: now, expires_at: now + SESSION_TTL_MS });
+  return token;
+}
+
+export async function registerUser(username, password, initialPreferences = {}) {
   const cleanUsername = String(username || "").trim();
   if (cleanUsername.length < 3 || cleanUsername.length > 30) {
-    throw new Error("Username must be between 3 and 30 characters.");
+    throw authError("Username must be between 3 and 30 characters.", 400);
   }
-  if (!/^[a-zA-Z0-9_-]+$/.test(cleanUsername)) {
-    throw new Error("Username can only contain letters, numbers, hyphens, and underscores.");
+  if (!USERNAME_PATTERN.test(cleanUsername)) {
+    throw authError("Username can only contain letters, numbers, hyphens, and underscores.", 400);
   }
   if (!password || password.length < 6) {
-    throw new Error("Password must be at least 6 characters.");
+    throw authError("Password must be at least 6 characters.", 400);
   }
 
-  const db = getDb();
-  const existing = db.prepare("SELECT id FROM users WHERE username = ? COLLATE NOCASE").get(cleanUsername);
-  if (existing) {
-    throw new Error("Username is already taken.");
+  const db = await getStore();
+  if (await db.findUserByUsername(cleanUsername)) {
+    throw authError("Username is already taken.", 400);
   }
 
   const id = crypto.randomUUID();
   const { hash, salt } = hashPassword(password);
   const now = Date.now();
-  const prefsJson = JSON.stringify(initialPreferences || {});
+  const preferences = initialPreferences || {};
+  try {
+    await db.insertUser({ id, username: cleanUsername, password_hash: hash, salt, preferences, created_at: now, updated_at: now });
+  } catch (error) {
+    // Two registrations racing for one name: the database's unique index wins.
+    if (error?.duplicate) throw authError("Username is already taken.", 400);
+    throw error;
+  }
 
-  db.prepare(`
-    INSERT INTO users (id, username, password_hash, salt, preferences, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, cleanUsername, hash, salt, prefsJson, now, now);
-
-  const token = generateToken();
-  const expiresAt = now + SESSION_TTL_MS;
-  db.prepare(`
-    INSERT INTO sessions (token, user_id, created_at, expires_at)
-    VALUES (?, ?, ?, ?)
-  `).run(token, id, now, expiresAt);
-
-  return {
-    user: { id, username: cleanUsername },
-    token,
-    preferences: initialPreferences,
-  };
+  return { user: { id, username: cleanUsername }, token: await startSession(db, id, now), preferences };
 }
 
-export function loginUser(username, password) {
+export async function loginUser(username, password) {
   const cleanUsername = String(username || "").trim();
   if (!cleanUsername || !password) {
-    throw new Error("Username and password are required.");
+    throw authError("Username and password are required.", 400);
+  }
+  // No registered name can fail this, so there is nothing to look up.
+  if (!USERNAME_PATTERN.test(cleanUsername)) throw INVALID_LOGIN();
+
+  const db = await getStore();
+  const user = await db.findUserByUsername(cleanUsername);
+  if (!user || !verifyPassword(password, user.password_hash, user.salt)) {
+    throw INVALID_LOGIN();
   }
 
-  const db = getDb();
-  const user = db.prepare("SELECT * FROM users WHERE username = ? COLLATE NOCASE").get(cleanUsername);
-  if (!user) {
-    throw new Error("Invalid username or password.");
-  }
-
-  const valid = verifyPassword(password, user.password_hash, user.salt);
-  if (!valid) {
-    throw new Error("Invalid username or password.");
-  }
-
-  const token = generateToken();
   const now = Date.now();
-  const expiresAt = now + SESSION_TTL_MS;
-  db.prepare(`
-    INSERT INTO sessions (token, user_id, created_at, expires_at)
-    VALUES (?, ?, ?, ?)
-  `).run(token, user.id, now, expiresAt);
-
-  let preferences = {};
-  try {
-    preferences = JSON.parse(user.preferences || "{}");
-  } catch {
-    preferences = {};
-  }
-
+  await db.deleteExpiredSessions(user.id, now);
   return {
     user: { id: user.id, username: user.username },
-    token,
-    preferences,
+    token: await startSession(db, user.id, now),
+    preferences: user.preferences || {},
   };
 }
 
-export function getUserByToken(token) {
+export async function getUserByToken(token) {
   if (!token) return null;
-  const db = getDb();
-  const now = Date.now();
-  const session = db.prepare(`
-    SELECT s.token, s.expires_at, u.id, u.username, u.preferences
-    FROM sessions s
-    JOIN users u ON u.id = s.user_id
-    WHERE s.token = ? AND s.expires_at > ?
-  `).get(token, now);
-
-  if (!session) return null;
-
-  let preferences = {};
-  try {
-    preferences = JSON.parse(session.preferences || "{}");
-  } catch {
-    preferences = {};
-  }
-
-  return {
-    user: { id: session.id, username: session.username },
-    preferences,
-  };
+  const db = await getStore();
+  const account = await db.findSession(hashToken(token), Date.now());
+  if (!account) return null;
+  return { user: { id: account.id, username: account.username }, preferences: account.preferences || {} };
 }
 
-export function saveUserPreferences(token, preferences) {
-  if (!token) throw new Error("Authentication token required.");
-  const db = getDb();
-  const now = Date.now();
-  const session = db.prepare(`
-    SELECT s.user_id FROM sessions s
-    WHERE s.token = ? AND s.expires_at > ?
-  `).get(token, now);
-
-  if (!session) {
-    throw new Error("Session expired or invalid.");
-  }
-
-  const prefsJson = JSON.stringify(preferences || {});
-  db.prepare(`
-    UPDATE users SET preferences = ?, updated_at = ?
-    WHERE id = ?
-  `).run(prefsJson, now, session.user_id);
-
+export async function saveUserPreferences(token, preferences) {
+  if (!token) throw authError("Authentication token required.", 401);
+  const db = await getStore();
+  const account = await db.findSession(hashToken(token), Date.now());
+  if (!account) throw authError("Session expired or invalid.", 401);
+  await db.updatePreferences(account.id, preferences || {}, Date.now());
   return { ok: true, preferences };
 }
 
-export function logoutUser(token) {
+export async function logoutUser(token) {
   if (!token) return { ok: true };
-  const db = getDb();
-  db.prepare("DELETE FROM sessions WHERE token = ?").run(token);
+  const db = await getStore();
+  await db.deleteSession(hashToken(token));
   return { ok: true };
 }
