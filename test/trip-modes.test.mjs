@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { ROUTE_MODES, optionMatchesMode, queriesFor, collapseFamilies } from "../api/_handlers/trip-options.js";
+import { ROUTE_MODES, optionMatchesMode, queriesFor, collapseFamilies, withinReachFirst } from "../api/_handlers/trip-options.js";
 
 const option = (...modes) => ({
   walkOnly: modes.length === 0,
@@ -80,4 +80,24 @@ test("Routes through different stops or lines stay separate choices", () => {
   const collapsed = collapseFamilies(options, byMins);
   assert.equal(collapsed.length, 3);
   assert.ok(collapsed.every((o) => !o.alsoBy));
+});
+
+test("Least walking does not put a two-hour bus ahead of a one-hour train", () => {
+  // Jurong East to Changi, as OneMap answered it: the bus routes walk less.
+  const options = [
+    { mins: 135, walkSecs: 300, id: "bus-a" },
+    { mins: 137, walkSecs: 320, id: "bus-b" },
+    { mins: 69, walkSecs: 600, id: "train" },
+  ];
+  const ranked = [...options].sort(withinReachFirst(options, ROUTE_MODES.leastWalk.rank));
+  assert.deepEqual(ranked.map((o) => o.id), ["train", "bus-a", "bus-b"]);
+});
+
+test("Within reach of the fastest, the mode's own ranking still decides", () => {
+  const options = [
+    { mins: 30, walkSecs: 600, id: "quick" },
+    { mins: 38, walkSecs: 120, id: "less-walk" },
+  ];
+  const ranked = [...options].sort(withinReachFirst(options, ROUTE_MODES.leastWalk.rank));
+  assert.deepEqual(ranked.map((o) => o.id), ["less-walk", "quick"]);
 });

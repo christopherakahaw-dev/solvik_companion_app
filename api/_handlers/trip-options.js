@@ -99,6 +99,19 @@ export function collapseFamilies(options, rank) {
   });
 }
 
+// A mode that ranks on something other than time (walking, crowding, fare)
+// would otherwise put a two-hour bus trip ahead of a one-hour train ride to
+// save five minutes on foot. Routes within reach of the fastest are ranked
+// first by the mode's own rule; slower ones still appear, after them.
+const REACH_FACTOR = 1.5;
+const REACH_SLACK_MINS = 15;
+
+export function withinReachFirst(options, rank) {
+  const fastest = Math.min(...options.map((o) => o.mins));
+  const inReach = (o) => o.mins <= fastest * REACH_FACTOR + REACH_SLACK_MINS;
+  return (a, b) => Number(inReach(b)) - Number(inReach(a)) || rank(a, b);
+}
+
 // Enrichment costs a bus-arrivals call per bus leg, so only the candidates
 // that could plausibly make the top three are enriched.
 const ENRICH_LIMIT = 6;
@@ -348,11 +361,12 @@ export default async function handler(req, res) {
 
     // Before enrichment the crowd-based rankings fall back to journey time,
     // which is the right order in which to spend the arrivals calls.
+    const rank = withinReachFirst(kept, spec.rank);
     const candidates = collapseFamilies(kept, spec.rank)
-      .sort(spec.rank)
+      .sort(rank)
       .slice(0, ENRICH_LIMIT);
     await enrich(candidates);
-    const ranked = candidates.sort(spec.rank).slice(0, 3).map((opt) => ({ ...opt, note: noteFor(opt) }));
+    const ranked = candidates.sort(rank).slice(0, 3).map((opt) => ({ ...opt, note: noteFor(opt) }));
 
     res.status(200).json({ mode, options: tagsFor(ranked, spec.tag), ...(avoided ? { avoided } : {}) });
   } catch (err) {

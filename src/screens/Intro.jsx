@@ -98,7 +98,7 @@ export function Intro({ v }) {
         {v.introS0 && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
             <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose your style</div>
-            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Solvik will open this route and explain why it fits this commuter better than the alternatives.</div>
+            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Pick how you like to travel. Solvik uses it to rank your routes and to decide which disruptions are worth telling you about.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 22 }}>
               {v.introRoles.map((r) => (
                 <button key={r.id} onClick={r.toggle} style={styleText(r.style)}>
@@ -124,8 +124,8 @@ export function Intro({ v }) {
 
         {v.introS1 && v.introJourney?.isFixed && (
           <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
-            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Fixed Schedule&apos;s journey</div>
-            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>This is the door-to-door journey Solvik will plan immediately.</div>
+            <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Your daily journey</div>
+            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Set where you start and where you need to be. Solvik plans it right away and watches it for disruptions.</div>
             {v.introJourney && <div style={{ marginTop: 22, padding: 18, borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)", boxShadow: "var(--shadow-card)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: "14px 12px", alignItems: "start" }}>
                 <span style={{ width: 28, height: 28, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--text-strong)", color: "var(--text-on-dark)" }}><Icon name="map-pin" size={14} /></span>
@@ -163,7 +163,7 @@ export function Intro({ v }) {
                       style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: "pointer" }}
                       title="Click to change origin"
                     >
-                      {v.introJourney.from}
+                      {v.introJourney.from === "-" ? <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>Choose where you start</span> : v.introJourney.from}
                     </strong>
                   )}
                 </div>
@@ -203,7 +203,7 @@ export function Intro({ v }) {
                       style={{ display: "block", font: "var(--type-body-strong)", color: "var(--text-strong)", marginTop: 2, cursor: "pointer" }}
                       title="Click to change destination"
                     >
-                      {v.introJourney.to}
+                      {v.introJourney.to === "-" ? <span style={{ color: "var(--text-muted)", fontWeight: 500 }}>Choose where you need to be</span> : v.introJourney.to}
                     </strong>
                   )}
                 </div>
@@ -214,7 +214,7 @@ export function Intro({ v }) {
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, marginBottom: 12, padding: "8px 12px", background: "var(--sand-100)", borderRadius: "var(--radius-card)" }}>
                 <div style={{ font: "var(--type-body-strong)", color: "var(--text-strong)", display: "flex", alignItems: "center", gap: 6, fontSize: "13px" }}>
                   <Icon name="clock-3" size={15} />
-                  <span>Change Arrive By:</span>
+                  <span>Arrive by</span>
                 </div>
                 <ArrivalTimePicker value={v.introArriveByTime} onChange={v.setIntroArriveBy} />
               </div>

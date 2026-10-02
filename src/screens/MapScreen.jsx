@@ -8,6 +8,18 @@ import { AnimatedWeatherIcon } from "../components/AnimatedWeatherIcon";
 import { journeyDuration, arrivalClockLabel } from "../lib/display";
 import { styleText } from "../lib/styleText";
 
+// Numbers at headline size, units small: "2 h 34 min" fits a 320 px card that
+// clipped it to "2 h 34 mir" when every letter was 32 px.
+function DurationText({ mins }) {
+  const parts = journeyDuration(mins).split(" ");
+  return parts.map((part, i) => (
+    <span key={i}>
+      {/^\d+$/.test(part) ? part : <small style={{ font: "var(--weight-bold) 15px/1 var(--font-body)", letterSpacing: 0 }}>{part}</small>}
+      {i < parts.length - 1 ? " " : null}
+    </span>
+  ));
+}
+
 export function MapScreen({ v }) {
   const routeScrollRef = useRef(null);
   const routeCardRef = useRef(null);
@@ -459,7 +471,7 @@ export function MapScreen({ v }) {
               {v.tripOptions.map((o, i) => (
                 <Card className="sv-route-option-card" key={i} tone={o.tone} padding="tight" interactive onClick={o.pick} style={{ "--sv-card-index": i }}>
                   <div className="sv-route-option-heading">
-                    <span style={{ font: "var(--weight-heavy) 32px/1 var(--font-numeric)", letterSpacing: "-.022em", fontVariantNumeric: "tabular-nums", color: "var(--text-strong)" }}>{journeyDuration(o.mins)}</span>
+                    <span style={{ font: "var(--weight-heavy) 32px/1 var(--font-numeric)", letterSpacing: "-.022em", fontVariantNumeric: "tabular-nums", color: "var(--text-strong)", whiteSpace: "nowrap" }}><DurationText mins={o.mins} /></span>
                     <div className="sv-route-option-status">
                       <Tag tone={o.tagTone}>{o.tag}</Tag>
 
