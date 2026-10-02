@@ -13,8 +13,11 @@ mobile build, implemented from the `Onward.dc.html` Claude Design handoff
 - **Leaflet + OpenStreetMap** — the map surface (`src/components/OneMapCanvas.jsx`). OSM is served through MapTiler (`VITE_MAPTILER_KEY`), because the OSM tile policy forbids applications from using `tile.openstreetmap.org`; OneMap's own tiles are the fallback. The ordering and the fallback rule are in `src/lib/mapBase.js` so they can be tested without a browser; MapTiler is only ever in the list when a key exists, because a keyless request to it is a guaranteed 403 and Leaflet asks for a tile per screenful. `VITE_MAPTILER_KEY` is compiled into the bundle at build time, so setting it on a host takes effect on the next deploy, not immediately.
 - **`lucide`** for icons, matching the design system's icon set.
 - **Browser storage** — onboarding, places, preferences, watched commutes,
-  learned journeys and checked reports remain on the current device. There is
-no account or cloud-sync dependency.
+  learned journeys and checked reports remain on the current device. Guests
+  need nothing else.
+- **Optional accounts (Supabase)** — signing in syncs preferences and saved
+  places across devices. Accounts live in a Supabase Postgres project, reached
+  only from the server with a secret key; see [Accounts](#accounts) below.
 - **Scenario-first setup** — Rachel, Arjun and Mdm Lim each seed a concrete
   local journey and preference profile. Rachel's Tampines → Raffles Place trip
   is the primary end-to-end demonstration.
@@ -43,6 +46,25 @@ Copy `.env.example` to `.env` and fill in:
   <https://datamall.lta.gov.sg/content/datamall/en/request-for-api.html> and
   set `LTA_ACCOUNT_KEY`. This powers station crowding, bus loading, service
   alerts and the nearest-stop lookup.
+
+### Accounts
+
+Signing in is optional; guests keep everything on the device. Accounts are
+stored in **Supabase**:
+
+1. Create a free project at <https://supabase.com>.
+2. In its SQL editor, run `supabase/migrations/20261002000000_solvik_accounts.sql`.
+   It creates `solvik_users` and `solvik_sessions` with row-level security on
+   and no policies, so the public anon key can read nothing.
+3. Set `SUPABASE_URL` and `SUPABASE_SECRET_KEY` (Project Settings → API Keys →
+   a secret key, or the legacy `service_role` key) in `.env` and in your host's
+   environment variables, then redeploy.
+
+Passwords are hashed with scrypt, and only a SHA-256 of each session token is
+stored, so a copy of the database cannot be used to sign in. Without Supabase
+configured, `npm run dev` keeps accounts in `.data/solvik.db` (git-ignored), and
+a Vercel deployment tells the client to keep the account on the device instead,
+rather than accepting sign-ups it would lose on the next cold start.
 
 The locate button uses the browser's own geolocation, which needs no keys but
 does require a secure context — it works on `localhost` and on the deployed

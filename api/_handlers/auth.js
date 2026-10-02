@@ -13,7 +13,8 @@ function extractToken(req) {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     return authHeader.slice(7).trim();
   }
-  return req.body?.token || req.query?.token || null;
+  // Never from the query string: URLs end up in access logs.
+  return req.body?.token || null;
 }
 
 export default async function handler(req, res) {
@@ -31,7 +32,7 @@ export default async function handler(req, res) {
     switch (action) {
       case "register": {
         const { username, password, preferences } = body;
-        const result = registerUser(username, password, preferences);
+        const result = await registerUser(username, password, preferences);
         res.status(201).json({
           ok: true,
           user: result.user,
@@ -43,7 +44,7 @@ export default async function handler(req, res) {
 
       case "login": {
         const { username, password } = body;
-        const result = loginUser(username, password);
+        const result = await loginUser(username, password);
         res.status(200).json({
           ok: true,
           user: result.user,
@@ -59,7 +60,7 @@ export default async function handler(req, res) {
           res.status(401).json({ error: "Not authenticated." });
           return;
         }
-        const account = getUserByToken(token);
+        const account = await getUserByToken(token);
         if (!account) {
           res.status(401).json({ error: "Session expired or invalid." });
           return;
@@ -83,7 +84,7 @@ export default async function handler(req, res) {
           res.status(400).json({ error: "Preferences payload must be an object." });
           return;
         }
-        const result = saveUserPreferences(token, preferences);
+        const result = await saveUserPreferences(token, preferences);
         res.status(200).json({ ok: true, preferences: result.preferences });
         return;
       }
@@ -91,7 +92,7 @@ export default async function handler(req, res) {
       case "logout": {
         const token = extractToken(req);
         if (token) {
-          logoutUser(token);
+          await logoutUser(token);
         }
         res.status(200).json({ ok: true });
         return;
@@ -101,14 +102,14 @@ export default async function handler(req, res) {
         res.status(400).json({ error: `Unknown auth action: ${action}` });
     }
   } catch (err) {
-    const message = err?.message || "Authentication error.";
-    const status = message.includes("Invalid") || message.includes("expired")
-      ? 401
-      : message.includes("already taken") || message.includes("between 3 and 30") || message.includes("at least 6")
-      ? 400
-      : message.includes("Account sync is unavailable")
-      ? 503
-      : 500;
-    res.status(status).json({ error: message });
+    // Errors raised on purpose carry their status and a message meant for the
+    // user. Anything else is a database or network fault: logged here, and
+    // answered generically so no table names or upstream detail reach the page.
+    if (err?.httpStatus) {
+      res.status(err.httpStatus).json({ error: err.message });
+      return;
+    }
+    console.error("[auth]", action, err);
+    res.status(503).json({ error: "The account service is unavailable right now. Try again shortly, or continue as a guest." });
   }
 }
