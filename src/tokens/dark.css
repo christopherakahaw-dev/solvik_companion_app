@@ -1,0 +1,74 @@
+/* Dark theme. Applied by data-theme="dark" on <html>, which src/lib/theme.js
+   sets from the stored choice — or from the phone's own setting when the
+   choice is "Automatic". One block, so light and dark can't drift apart in
+   two copies.
+
+   Components mostly use the semantic tokens; the light neutrals sand-50…400
+   are also used directly as background tints, so they are remapped to dark
+   tints here. The dark neutrals (sand-500…900) keep their values: where they
+   are used directly they are meant to stay dark (the camera backdrop). */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --sand-400: #4b4845;
+  --sand-300: #383533;
+  --sand-200: #2b2927;
+  --sand-100: #232120;
+  --sand-50: #1b1a19;
+  /* Only ever used as a text colour (the selected tab): lightened to stay legible. */
+  --green-900: #cfe6d7;
+  --amber-100: #3a2e18;
+  --rust-100: #3b271b;
+  --sky-100: #1c2a3b;
+  --berry-100: #3b1f25;
+
+  --text-strong: #f3f1ec;
+  --text-body: #e2dfd9;
+  --text-muted: #a9a59f;
+  --text-subtle: #858179;
+  --text-accent: #9cc8ad;
+  --text-on-dark: #f3f1ec;
+  --text-link: #9cc8ad;
+  --text-link-hover: #bfdccb;
+
+  --surface-page: #141312;
+  --surface-card: #1e1c1b;
+  --surface-raised: #262422;
+  --surface-sunken: #0f0e0d;
+  --surface-accent: #1d2b23;
+  --surface-dark: #2b2927;
+  --surface-map: #1b1a19;
+  --surface-overlay: rgba(0, 0, 0, .6);
+
+  --border-hairline: #34312f;
+  --border-card: #2c2a28;
+  --border-strong: #4b4845;
+  --border-accent: #3e5c4a;
+  --border-focus: var(--green-400);
+
+  --accent: var(--green-500);
+  --accent-hover: var(--green-400);
+  --accent-press: var(--green-600);
+  --accent-soft: #1f2e25;
+  --accent-soft-hover: #283b31;
+  --accent-ring: rgba(139, 181, 155, .32);
+
+  --map-land: #1b1a19;
+  --map-pin: #f3f1ec;
+
+  --shadow-card: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 16px rgba(0, 0, 0, .28);
+  --shadow-raised: 0 2px 4px rgba(0, 0, 0, .32), 0 12px 28px rgba(0, 0, 0, .4);
+  --shadow-sheet: 0 -2px 8px rgba(0, 0, 0, .3), 0 -14px 40px rgba(0, 0, 0, .45);
+  --shadow-nav: 0 2px 6px rgba(0, 0, 0, .32), 0 14px 34px rgba(0, 0, 0, .45);
+  --shadow-press: 0 1px 1px rgba(0, 0, 0, .4);
+}
+
+/* The map tiles are light images; invert them and rotate the hue back, so
+   water stays blue and parks stay green, then soften the contrast. Routes,
+   markers and crowding circles live in other panes and keep their colours. */
+:root[data-theme="dark"] .leaflet-tile-pane {
+  filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.75);
+}
+:root[data-theme="dark"] .leaflet-container {
+  background: var(--surface-map);
+}

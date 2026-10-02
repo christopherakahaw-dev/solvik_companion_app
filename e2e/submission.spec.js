@@ -1194,3 +1194,59 @@ test("without a share sheet, the ETA is copied for pasting instead", async ({ pa
   await expect(page.getByText("ETA copied · paste it into any chat")).toBeVisible();
   expect(await page.evaluate(() => window.__copied[0])).toMatch(/^On my way to CLEMENTI ARCADE/);
 });
+test("with no signal, the route planned earlier still opens, marked as saved", async ({ page }) => {
+  await setup(page, { home, school }, { tripOptions: [{ ...option, walkOnly: false, tag: "Fastest", transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 0, crowdLevel: "busy" }] }] });
+  await pickDestination(page);
+  await expect(page.getByRole("button", { name: "Go", exact: true })).toBeVisible();
+
+  // Signal gone: a fresh visit to the same trip cannot reach the planner.
+  await page.reload();
+  await page.route("**/api/trip-options", (route) => route.abort("internetdisconnected"));
+  await pickDestination(page);
+  await expect(page.getByRole("status").filter({ hasText: /^Offline · saved at \d{2}:\d{2}\. Times and crowding may have changed since\.$/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Go", exact: true })).toBeVisible();
+});
+
+test("with no signal and nothing saved, the error says so plainly", async ({ page }) => {
+  await setup(page);
+  await page.route("**/api/trip-options", (route) => route.abort("internetdisconnected"));
+  await pickDestination(page);
+  await expect(page.getByText("You're offline", { exact: true })).toBeVisible();
+});
+
+test("appearance can be set to dark or light, and the choice survives a reload", async ({ page }) => {
+  await setup(page);
+  await page.getByRole("navigation").getByRole("button").last().click();
+  const appearance = page.getByRole("radiogroup", { name: "Appearance" });
+  await appearance.getByRole("radio", { name: "Dark" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).not.toBe("rgb(236, 234, 230)");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("navigation").getByRole("button").last().click();
+  await page.getByRole("radiogroup", { name: "Appearance" }).getByRole("radio", { name: "Light" }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});
+
+test("Automatic follows the phone's dark setting", async ({ page }) => {
+  await page.emulateMedia({ colorScheme: "dark" });
+  await setup(page);
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.emulateMedia({ colorScheme: "light" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+});
+
+test("the app is installable: manifest and icons are served", async ({ page, request }) => {
+  await page.goto("/");
+  const href = await page.locator('link[rel="manifest"]').getAttribute("href");
+  const manifest = await (await request.get(href)).json();
+  expect(manifest.display).toBe("standalone");
+  expect(manifest.start_url).toBe("/");
+  for (const icon of manifest.icons) {
+    const res = await request.get(icon.src);
+    expect(res.ok(), icon.src).toBe(true);
+    expect(res.headers()["content-type"]).toContain("image/png");
+  }
+  expect(manifest.icons.some((icon) => icon.purpose === "maskable")).toBe(true);
+  expect((await request.get(await page.locator('link[rel="apple-touch-icon"]').getAttribute("href"))).ok()).toBe(true);
+});

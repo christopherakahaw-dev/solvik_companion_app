@@ -18,7 +18,7 @@ export default {
   outputDir: "../demo-capture/video",
   use: {
     baseURL: "http://127.0.0.1:5179",
-    timezoneId: "Asia/Singapore",
+    timezoneId: "Asia/Singapore", colorScheme: process.env.SHOT_SCHEME || "light",
     video: { mode: "on", size: { width: 393, height: 852 } },
   },
   projects: [

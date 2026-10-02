@@ -27,6 +27,11 @@ export const KEYS = {
   // plaintext password.
   authAccounts: "solvik:auth_accounts",
   isGuest: "solvik:is_guest",
+  // The last few routes you planned, so they can still be opened with no
+  // signal. Shown with the time they were saved, never as live.
+  savedRoutes: "solvik:savedRoutes",
+  // "system" | "light" | "dark"
+  theme: "solvik:theme",
 };
 
 export const PLACE_IDS = ["home", "work", "school"];

@@ -12,7 +12,8 @@
     "test:ui": "playwright test",
     "capture": "playwright test -c scripts/capture-demo.config.js",
     "diagnose": "node scripts/diagnose.mjs",
-    "stations": "node scripts/stations.mjs"
+    "stations": "node scripts/stations.mjs",
+    "icons": "node scripts/icons.mjs"
   },
   "dependencies": {
     "@meteocons/svg": "^0.1.0",

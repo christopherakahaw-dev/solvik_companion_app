@@ -128,7 +128,7 @@ export function Intro({ v }) {
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Set where you start and where you need to be. Solvik plans it right away and watches it for disruptions.</div>
             {v.introJourney && <div style={{ marginTop: 22, padding: 18, borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)", boxShadow: "var(--shadow-card)" }}>
               <div style={{ display: "grid", gridTemplateColumns: "32px 1fr", gap: "14px 12px", alignItems: "start" }}>
-                <span style={{ width: 28, height: 28, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--text-strong)", color: "var(--text-on-dark)" }}><Icon name="map-pin" size={14} /></span>
+                <span style={{ width: 28, height: 28, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--text-strong)", color: "var(--surface-page)" }}><Icon name="map-pin" size={14} /></span>
                 <div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                     <small style={{ font: "var(--type-label)", color: "var(--text-muted)", textTransform: "uppercase" }}>From</small>

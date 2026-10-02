@@ -34,6 +34,16 @@ export function routeFailure(error, mode = "transit") {
     };
   }
 
+  if (/you're offline/.test(lower)) {
+    return {
+      title: "You're offline",
+      detail: "Routes need a connection, and none was saved for this trip yet. Routes you plan while online stay available here.",
+      technical,
+      retry: true,
+      alternatives: false,
+    };
+  }
+
   if (/unable to get mrt route|mrt route/.test(lower) || (mode === "train" && /404|no route|not found/.test(lower))) {
     return {
       title: "No train-only route found",
