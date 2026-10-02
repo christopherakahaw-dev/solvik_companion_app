@@ -45,14 +45,12 @@ test("demo data walkthrough", async ({ page }) => {
   await page.waitForTimeout(1200);
   await shot("landing");
 
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
+  await page.getByRole("button", { name: "Continue as Guest" }).click();
   await page.waitForTimeout(900);
   await shot("onboarding");
 
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
-  await page.getByRole("button", { name: "Review this setup" }).click();
-  await page.getByRole("button", { name: "Show my route" }).click();
+  await page.getByRole("button", { name: /^Flexible and Multi-Modal/ }).click();
+  await page.getByRole("button", { name: /^Continue with / }).click();
   await page.waitForTimeout(1200);
   await page.getByRole("button", { name: "Plan", exact: true }).click();
   await page.waitForTimeout(1500);
@@ -63,12 +61,12 @@ test("demo data walkthrough", async ({ page }) => {
   await scrollThrough("seeded");
 
   await toTop();
-  await page.getByRole("button", { name: /Step-free access/ }).click();
+  await page.getByRole("button", { name: /^Easy and Accessible/i }).click();
   await page.waitForTimeout(1600);
   await scrollThrough("stepfree-large-text");
 
   await toTop();
-  await page.getByRole("button", { name: /Fixed schedule/ }).click();
+  await page.getByRole("button", { name: /^Fixed schedule/i }).click();
   await page.waitForTimeout(1200);
 
   for (const [tab, name] of [["Map", "map"], ["Report", "report"], ["Points", "points"]]) {

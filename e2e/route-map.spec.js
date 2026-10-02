@@ -28,7 +28,7 @@ test("the affected portion and the original route are both drawn", async ({ page
   await page.goto("/");
   await page.getByRole("textbox", { name: /Search address/ }).fill("raffles");
   await page.getByRole("button", { name: /^RAFFLES PLACE/ }).click();
-  await expect(page.getByText("38", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("38 min", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /Crowding layer/ })).toHaveCount(0);
   await expect(page.locator(".sv-route-crowd-station")).toHaveCount(2);
   await expect(page.locator(".sv-route-bus-load")).toHaveCount(1);
