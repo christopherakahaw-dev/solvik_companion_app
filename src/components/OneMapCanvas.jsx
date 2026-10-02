@@ -166,18 +166,18 @@ export function OneMapCanvas({
     // Walk the list on failure. The list only ever holds bases that *can*
     // authenticate, so running out of it means the tile servers are down or
     // the network is — not that we have another spelling left to try.
-    const useBase = (index) => {
+    const showBase = (index) => {
       if (base) map.removeLayer(base);
       const spec = layers[index];
       base = L.tileLayer(spec.url, spec.options);
       base.on("tileerror", () => {
         if (baseIndex !== index || index + 1 >= layers.length) return;
         baseIndex = index + 1;
-        useBase(baseIndex);
+        showBase(baseIndex);
       });
       base.addTo(map);
     };
-    useBase(0);
+    showBase(0);
     map.on("click", (e) => {
       if (clickRef.current) clickRef.current([e.latlng.lat, e.latlng.lng]);
     });

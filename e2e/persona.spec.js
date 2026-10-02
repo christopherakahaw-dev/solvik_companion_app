@@ -34,11 +34,11 @@ test("the same lift outage reads differently for each commuter", async ({ page }
   await expect(page.getByText("Lift out at Bishan")).toBeVisible();
 
   // Fixed schedule: a note. The trains still run.
-  await page.getByRole("button", { name: /Fixed schedule/ }).click();
+  await page.getByRole("button", { name: /^Fixed schedule/i }).click();
   await expect(page.getByText(/trains still run — only the lift is out/)).toBeVisible();
 
   // Step-free: the same feed row, now a blocked journey.
-  await page.getByRole("button", { name: /Step-free access/ }).click();
+  await page.getByRole("button", { name: /^Easy and Accessible/i }).click();
   await expect(page.getByText(/You travel step-free, so this may block the way through/)).toBeVisible();
 
   // Neither version claims how long, because LTA does not publish that.
@@ -47,8 +47,8 @@ test("the same lift outage reads differently for each commuter", async ({ page }
 
 test("the chosen persona is named on screen and survives a reload", async ({ page }) => {
   await withCommute(page);
-  await page.getByRole("button", { name: /Flexible and multi-modal/ }).click();
+  await page.getByRole("button", { name: /^Flexible and multi-modal/i }).click();
   await page.reload();
   await page.getByRole("button", { name: "Plan", exact: true }).click();
-  await expect(page.getByRole("button", { name: /Flexible and multi-modal/ })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("button", { name: /^Flexible and multi-modal/i })).toHaveAttribute("aria-pressed", "true");
 });

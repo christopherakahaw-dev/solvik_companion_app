@@ -94,6 +94,30 @@ export function PlanScreen({ v }) {
         </div>
       )}
 
+      {/* A commute Solvik added on its own says why, and offers Undo — the
+          promise that inference never happens silently. */}
+      {v.justAdded && (
+        <div className="sv-plan-learned" style={{ borderRadius: "var(--radius-card)", background: "var(--accent-soft)", border: "1px solid var(--accent)", padding: "15px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ width: 26, height: 26, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent)", color: "var(--text-on-accent)" }}>
+              <Icon name="sparkles" size={14} />
+            </span>
+            <SectionLabel>Learned from your trips</SectionLabel>
+          </div>
+          <div style={{ font: "var(--weight-heavy) 16px/1.25 var(--font-display)", letterSpacing: "-.02em", color: "var(--text-strong)", marginTop: 10, textWrap: "pretty" }}>{v.justAdded.title}</div>
+          <div style={{ font: "var(--type-body)", color: "var(--text-body)", marginTop: 4, textWrap: "pretty" }}>{v.justAdded.when}</div>
+          <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 6, textWrap: "pretty" }}>{v.justAdded.evidence}</div>
+          <div style={{ display: "flex", gap: 8, marginTop: 13 }}>
+            <Button variant="secondary" size="sm" onClick={v.justAdded.undo}>
+              Undo
+            </Button>
+            <Button variant="ghost" size="sm" onClick={v.justAdded.dismiss}>
+              Keep it
+            </Button>
+          </div>
+        </div>
+      )}
+
       {v.planHasNext && (
         <article className="sv-next-journey" aria-label={`Next commute from ${v.planNextFrom} to ${v.planNextTo}`}>
           <div className="sv-next-journey-glow" aria-hidden="true" />

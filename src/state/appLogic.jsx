@@ -39,6 +39,17 @@ import {
 import { loginUserApi, registerUserApi, getMeApi, savePreferencesApi, logoutUserApi } from "../api/auth";
 
 const ONBOARDED_KEY = KEYS.onboarded;
+
+// A device that finished onboarding before accounts existed has never been
+// asked to sign in, so it has no guest flag at all. Signing out writes the
+// flag as false, which is how the two are told apart. Such a commuter is
+// already a guest with everything on the device; greeting them with "Welcome
+// back, sign in" put a wall in front of their own data.
+function predatesAccounts() {
+  return !loadStored(KEYS.authUser, null)
+    && loadStored(KEYS.isGuest, null) === null
+    && Boolean(loadStored(ONBOARDED_KEY, null));
+}
 const COMMUTES_KEY = KEYS.commutes;
 
 // A neutral Singapore-wide fallback. If the user has explicitly saved a
@@ -126,12 +137,14 @@ export class AppLogic extends Component {
     hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
     authUser: loadStored(KEYS.authUser, null),
-    isGuest: loadStored(KEYS.isGuest, false),
+    isGuest: loadStored(KEYS.isGuest, false) || predatesAccounts(),
     authBusy: false,
     authError: null,
-    screen: (!loadStored(KEYS.authUser, null) && !loadStored(KEYS.isGuest, false))
-      ? "auth"
-      : (loadPreferences()?.travelStyleSelected ? "map" : "intro"),
+    screen: predatesAccounts()
+      ? "map"
+      : (!loadStored(KEYS.authUser, null) && !loadStored(KEYS.isGuest, false))
+        ? "auth"
+        : (loadPreferences()?.travelStyleSelected ? "map" : "intro"),
     introScenario: null,
     introCustomFrom: null,
     introCustomTo: null,
@@ -179,7 +192,11 @@ export class AppLogic extends Component {
     nearbyStops: { items: [], pending: false, error: null, requested: false },
   };
 
-  componentDidMount() {
+  // Called from componentDidMount below. This used to be a second
+  // componentDidMount, and in a class the later definition replaces the
+  // earlier one — so none of this ran: no compass heading, no demo hooks, and a
+  // signed-in account was never refreshed or signed out when its session expired.
+  startDeviceAndAccount() {
     if (typeof window !== "undefined") {
       window.solvikSeedTrips = this.seedSampleTrips;
       window.solvikSimulateDisruption = this.toggleDemoAlert;
@@ -206,12 +223,6 @@ export class AppLogic extends Component {
           this.authLogout();
         }
       });
-    }
-  }
-
-  componentWillUnmount() {
-    if (this._unsubHeading) {
-      this._unsubHeading();
     }
   }
 
@@ -1217,10 +1228,38 @@ export class AppLogic extends Component {
       });
   };
 
-  // Learned commutes are managed through AI memory analysis rather than
-  // deterministic clustering heuristics.
+  // The deterministic rules decide what becomes a commute and when it retires;
+  // the optional Gemini summary only adds a description on top. Calling the AI
+  // alone here meant nothing was learned without a Gemini key, and a learned
+  // commute was never retired at all.
   reviewPatterns = () => {
+    const s = this.state;
+    const journeys = s.journeys || [];
     this.refreshAiMemory();
+    // Retire before promoting, so a routine that moved is replaced in one pass
+    // rather than leaving the old commute sitting next to the new one.
+    const stale = staleCommutes(s.savedList, journeys);
+    const kept = stale.length ? (s.savedList || []).filter((c) => !stale.includes(c)) : s.savedList || [];
+    const pattern = inferCommutes({ journeys, existing: kept, rejected: s.patternsRejected || [] })[0];
+    const commute = pattern ? commuteFromPattern(pattern) : null;
+    if (!commute && !stale.length) return;
+
+    this.setState({
+      savedList: commute ? kept.concat([commute]) : kept,
+      ...(commute ? { justAdded: { signature: commute.signature, at: Date.now() } } : {}),
+    });
+
+    // A commute that disappears without a word is the thing the evidence line
+    // exists to prevent, so a retirement is announced the same as a promotion.
+    const name = (c) => `${(c.fromPlace && c.fromPlace.label) || "start"} → ${(c.toPlace && c.toPlace.label) || "destination"}`;
+    const dropped = stale.length === 1 ? name(stale[0]) : `${stale.length} learned trips`;
+    this.flash(
+      commute && stale.length
+        ? `Your routine changed · now watching ${name(commute)}`
+        : commute
+          ? `Learned your ${name(commute)} trip`
+          : `Stopped watching ${dropped} · no trips in ${Math.round(RETIRE_MS / 86400000)} days`
+    );
   };
 
   // Undo removes the commute and remembers the refusal, so the same pattern is
@@ -2230,6 +2269,7 @@ export class AppLogic extends Component {
     if (!tracks && tracked) this.stopTracking();
   }
   componentDidMount() {
+    this.startDeviceAndAccount();
     this.t0 = Date.now();
     this.iv = setInterval(() => this.setState({ tick: Date.now() }), 1000);
     if (typeof document !== "undefined") document.addEventListener("visibilitychange", this.handleVisibilityChange);
@@ -2259,6 +2299,7 @@ export class AppLogic extends Component {
     }, 5 * 60 * 1000);
   }
   componentWillUnmount() {
+    if (this._unsubHeading) this._unsubHeading();
     this._crowdBarObserver?.disconnect();
     clearTimeout(this.bt);
     clearInterval(this.iv);
@@ -2695,7 +2736,7 @@ export class AppLogic extends Component {
       : (selected?.route.label || selected?.name || "Your style");
 
     const scheduleText = isFixed
-      ? (hasCalculatedTravel ? `Leave ${leaveTime} arrive by ${arriveByTime} , Every Weekday` : `Leave - arrive by ${arriveByTime} , Every Weekday`)
+      ? (hasCalculatedTravel ? `Leave ${leaveTime} · arrive by ${arriveByTime} · every weekday` : `Arrive by ${arriveByTime} · every weekday`)
       : selected?.route.schedule;
 
     const dotIndices = isFixed ? [0, 1] : [0];

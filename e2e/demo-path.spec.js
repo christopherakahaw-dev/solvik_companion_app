@@ -15,12 +15,9 @@ test("every headline feature is reachable from a cold start", async ({ page }) =
   };
 
   await page.goto("/");
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
-  await page.getByRole("button", { name: "Review this setup" }).click();
-  await page.getByRole("button", { name: "Show my route" }).click();
-  await page.getByRole("button", { name: "Change destination", exact: true }).click();
+  await page.getByRole("button", { name: "Continue as Guest" }).click();
+  await page.getByRole("button", { name: /^Flexible and Multi-Modal/ }).click();
+  await page.getByRole("button", { name: /^Continue with / }).click();
   await page.getByRole("button", { name: "Plan", exact: true }).click();
   await page.waitForTimeout(1500);
 
@@ -34,7 +31,9 @@ test("every headline feature is reachable from a cold start", async ({ page }) =
   // Proactive: a leave-time, and a crowd level phrased at the feed's own
   // resolution rather than finer.
   await need("a leave-time card", page.getByText(/LEAVE IN|LEAVING NOW|NEXT UP/i));
-  await need("a crowd level at a station on the way", page.getByText(/(Busy|Filling|Moderate|Light) at /));
+  // LTA publishes a same-day forecast only, so run in the evening a morning
+  // commute honestly has none yet — that answer counts, a blank does not.
+  await need("a crowd level at a station on the way", page.getByText(/(Busy|Filling|Moderate|Light) at |Light all the way|No forecast yet/).first());
 
   // The memory system, and the evidence it shows for its own inference.
   await need("a learned commute with its evidence", page.getByText(/Learned · Seen/));
@@ -60,10 +59,10 @@ test("every headline feature is reachable from a cold start", async ({ page }) =
   // Tailored: the same feed rows have to produce different advice, not just a
   // different label.
   const body = page.locator("body");
-  await page.getByRole("button", { name: /Fixed schedule/ }).click();
+  await page.getByRole("button", { name: /^Fixed schedule/i }).click();
   await page.waitForTimeout(700);
   const fixed = await body.innerText();
-  await page.getByRole("button", { name: /Step-free access/ }).click();
+  await page.getByRole("button", { name: /^Easy and Accessible/i }).click();
   await page.waitForTimeout(700);
   if ((await body.innerText()) === fixed) missing.push("the advice changes with the persona");
   if ((await page.evaluate(() => document.documentElement.getAttribute("data-text"))) !== "large") {

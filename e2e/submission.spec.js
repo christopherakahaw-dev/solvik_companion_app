@@ -193,7 +193,7 @@ test("a dropped pin searches nearby places and ranks the results", async ({ page
   expect(searchRequests.at(-1).near).toHaveLength(2);
   expect(searchRequests.at(-1).near.every(Number.isFinite)).toBe(true);
   await expect(page.getByText(/(?:m|km) away/).first()).toBeVisible();
-  await expect(page.getByText("Nearby", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/^Nearest matches for/).first()).toBeVisible();
   await expect(page.getByText("Ranked by distance from the pin · Results from OneMap", { exact: true })).toBeVisible();
 });
 
@@ -346,6 +346,9 @@ test("a nearby walking-only result switches from Transit to Walk", async ({ page
 });
 
 test("desktop content and active navigation use compact responsive layouts", async ({ page }, info) => {
+  // The longest walk-through in the suite; the default 30 s runs out when every
+  // profile is running in parallel.
+  test.slow();
   await setup(page);
   await page.setViewportSize({ width: 1280, height: 800 });
 
@@ -362,6 +365,11 @@ test("desktop content and active navigation use compact responsive layouts", asy
   expect(Math.abs(placesBox.width - planBox.width)).toBeLessThanOrEqual(3);
   const savedRows = await page.locator(".sv-saved-grid > button").all();
   expect(savedRows).toHaveLength(3);
+  // The cards rise in on entry; measure once they have landed, not mid-flight.
+  // Only these cards' own one-off animations: elsewhere on the page some loop forever.
+  await page.locator(".sv-plan-screen").evaluate((screen) => Promise.all(screen.getAnimations({ subtree: true })
+    .filter((a) => a.effect?.getTiming().iterations !== Infinity)
+    .map((a) => a.finished.catch(() => {}))));
   const savedTops = await Promise.all(savedRows.map(async row => (await row.boundingBox()).y));
   expect(Math.max(...savedTops) - Math.min(...savedTops)).toBeLessThanOrEqual(2);
   await expect(page.locator(".sv-tab-bar")).toBeHidden();
@@ -401,11 +409,17 @@ test("desktop content and active navigation use compact responsive layouts", asy
   await expect(page.getByRole("button", { name: "Resume following my location" })).toHaveCount(0);
   const map = page.locator(".leaflet-container");
   const mapBox = await map.boundingBox();
+  const centerBeforeDrag = await map.getAttribute("data-map-center");
   await page.mouse.move(mapBox.x + mapBox.width * 0.55, mapBox.y + mapBox.height * 0.45);
   await page.mouse.down();
   await page.mouse.move(mapBox.x + mapBox.width * 0.35, mapBox.y + mapBox.height * 0.45, { steps: 8 });
   await page.mouse.up();
-  await page.waitForTimeout(700);
+  // Read the centre once the drag has landed: it moves the map ~0.01° east,
+  // which a fixed 700 ms wait did not always see on slower engines. (Sub-metre
+  // rounding changes don't count as the drag.)
+  const lng = (center) => Number(String(center).split(",")[1]);
+  await expect.poll(async () => Math.abs(lng(await map.getAttribute("data-map-center")) - lng(centerBeforeDrag)), { timeout: 5000 }).toBeGreaterThan(0.001);
+  await page.waitForTimeout(300);
   const exploredCenter = await map.getAttribute("data-map-center");
   await expect(page.getByRole("button", { name: "Resume following my location" })).toBeVisible();
   await page.waitForTimeout(4300);
@@ -605,7 +619,7 @@ test("Gemini can rank supplied routes without inventing a journey", async ({ pag
 
   await expect(page.getByText(/AI-assisted recommendation · gemini-3.5-flash-lite/i)).toBeVisible();
   const cards = page.locator(".sv-route-option-card");
-  await expect(cards.first()).toContainText("2 h 41 m");
+  await expect(cards.first()).toContainText("2 h 41 min");
   await expect(cards.first()).toContainText("Gemini explanation");
   await expect(cards.first()).toContainText("Light crowding and no changes");
   await expect(cards).toHaveCount(2);
@@ -667,29 +681,57 @@ test("crowding is fetched as a current route snapshot without a global scrubber"
   await expect(page.getByRole("button", { name: /Crowding layer/ })).toHaveCount(0);
 });
 
-test("onboarding saves Rachel's scenario and opens its scheduled route", async ({ page }) => {
+test("onboarding saves the fixed schedule the commuter chose and plans it", async ({ page }) => {
   await setup(page, {});
   let routeRequest = null;
   page.on("request", (request) => {
     if (new URL(request.url()).pathname.endsWith("trip-options") && request.method() === "POST") routeRequest = request.postDataJSON();
   });
-  await page.evaluate(() => localStorage.removeItem("solvik:onboarded"));
+  // A brand-new device: nothing of Solvik's in storage. (Settle the first load
+  // before reloading — see the note on networkidle below.)
+  await page.waitForLoadState("networkidle");
+  await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith("solvik:")).forEach((k) => localStorage.removeItem(k)));
   await page.reload();
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
-  await expect(page.getByText("Tampines", { exact: true })).toBeVisible();
-  await expect(page.getByText("Raffles Place", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Review this setup" }).click();
+  await page.getByRole("button", { name: "Continue as Guest" }).click();
+  await page.getByRole("button", { name: /^Fixed Schedule/ }).click();
+  await page.getByRole("button", { name: "Continue with Fixed Schedule" }).click();
+
+  // Nothing is filled in for them, and nothing can be planned until it is.
+  await expect(page.getByText("Choose where you start")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Set locations to continue" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Change" }).first().click();
+  await page.getByPlaceholder("Search origin location…").fill("bugis");
+  await page.getByRole("option", { name: /^BUGIS\+/ }).click();
+  await page.getByRole("button", { name: "Change" }).last().click();
+  await page.getByPlaceholder("Search destination…").fill("nanyang");
+  await page.getByRole("option", { name: /^NANYANG TECHNOLOGICAL UNIVERSITY/ }).click();
+  await expect(page.getByText(/Arrive by 08:45 · every weekday|Leave .* · arrive by 08:45 · every weekday/)).toBeVisible();
   await page.getByRole("button", { name: "Show my route" }).click();
-  await expect(page.getByText(/[A-Z][a-z]{2} 07:40/)).toBeVisible();
-  await expect.poll(() => routeRequest?.time).toBe("07:40:00");
+
+  await expect.poll(() => routeRequest?.to).toBeTruthy();
+  // Let in-flight requests finish: WebKit reports one cut off by a reload as a
+  // page error ("due to access control checks"), though the app handles it.
+  await page.waitForLoadState("networkidle");
   await page.reload();
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:places")).places.home.name)).toBe("Tampines");
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:places")).places.work.name)).toBe("Raffles Place");
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:preferences")).scenario)).toBe("fixed");
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:commutes"))[0].signature)).toBe("scenario:fixed");
+  await expect(page.getByRole("button", { name: "Plan", exact: true })).toBeVisible();
+  const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:preferences")));
+  expect(prefs.travelStyle).toBe("fixed");
+  expect(prefs.travelStyleSelected).toBe(true);
+  const commute = await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:commutes"))[0]);
+  expect(commute.fromPlace.label || commute.fromPlace.name).toMatch(/BUGIS\+/);
+  expect(commute.toPlace.label || commute.toPlace.name).toMatch(/NANYANG/);
   expect(await page.evaluate(() => window.qaLocationCalls)).toBe(0);
+});
+
+test("a device set up before accounts existed opens straight to the app as a guest", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("solvik:onboarded", "1");
+    localStorage.setItem("solvik:places", JSON.stringify({ version: 2, places: {} }));
+  });
+  await page.goto("/");
+  await expect(page.getByRole("button", { name: "Plan", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Welcome back" })).toHaveCount(0);
 });
 
 test("storage denial does not prevent completing onboarding or browsing tabs", async ({ page }) => {
@@ -699,12 +741,9 @@ test("storage denial does not prevent completing onboarding or browsing tabs", a
     Storage.prototype.setItem = () => { throw new DOMException("Blocked", "SecurityError"); };
   });
   await page.reload();
-  await page.getByRole("button", { name: "Choose a commuter" }).click();
-  await page.getByRole("button", { name: /^Rachel · fixed schedule/ }).click();
-  await page.getByRole("button", { name: /^Continue with Rachel/ }).click();
-  await page.getByRole("button", { name: "Review this setup" }).click();
-  await page.getByRole("button", { name: "Show my route" }).click();
-  await page.getByRole("button", { name: "Back to map search" }).click();
+  await page.getByRole("button", { name: "Continue as Guest" }).click();
+  await page.getByRole("button", { name: /^Flexible and Multi-Modal/ }).click();
+  await page.getByRole("button", { name: /^Continue with / }).click();
   for (const name of ["Plan", "Report", "Points", "Map"]) {
     await page.getByRole("navigation").getByRole("button", { name, exact: true }).click();
     await noOverflow(page);
@@ -717,7 +756,7 @@ test("erase all data removes saved places and local history", async ({ page }) =
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Erase all data from this device" }).click();
-  await expect(page.getByRole("button", { name: "Choose a commuter" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Continue as Guest" })).toBeVisible();
   expect(await page.evaluate(() => Object.keys(localStorage).filter(key => key.startsWith("solvik:")))).toEqual([]);
 });
 
@@ -898,8 +937,10 @@ test("two trips to a place is enough to be warned about its line", async ({ page
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem("solvik:commutes") || "[]").length)).toBe(0);
 
   await page.getByRole("button", { name: "Plan", exact: true }).click();
-  await expect(page.getByText(/The Office/)).toBeVisible();
+  // The place is also named in the disruption card now, so look for it in the
+  // memory panel's list specifically.
   await expect(page.getByText(/2 visits · via NSL/)).toBeVisible();
+  await expect(page.getByText(/The Office/).first()).toBeVisible();
 
   // And the alert says which place it affects, not just which line.
   await page.getByRole("button", { name: "Map", exact: true }).click();
@@ -1009,6 +1050,14 @@ test("a lift out somewhere you never go is not mentioned", async ({ page }) => {
 
 // Reports: camera-only capture, triage before anything is saved, and no remote
 // account or report database.
+// The fake camera streams a canvas, and the WebKit build Playwright ships for
+// Windows has no canvas.captureStream. Real Safari does, and a real phone uses
+// its own camera, so skip only where the simulation itself is impossible.
+async function requireFakeCamera(page) {
+  const canFake = await page.evaluate(() => typeof HTMLCanvasElement.prototype.captureStream === "function");
+  test.skip(!canFake, "This browser build cannot simulate a camera (no canvas.captureStream).");
+}
+
 async function reportFlow(page, { verdict = "accepted" } = {}) {
   await page.addInitScript(() => {
     localStorage.setItem("solvik:onboarded", "1");
@@ -1069,6 +1118,7 @@ test("a checked report and its points stay on this device", async ({ page }) => 
   const posted = await reportFlow(page);
   await page.getByRole("button", { name: /Use location|Recheck/ }).click();
   await page.getByText("Escalator or lift down").click();
+  await requireFakeCamera(page);
   await page.getByRole("button", { name: /Open the camera/ }).click();
   await page.getByRole("button", { name: "Take photo" }).click();
   await page.getByRole("button", { name: /Save report/ }).click();
@@ -1089,6 +1139,7 @@ test("a checked report and its points stay on this device", async ({ page }) => 
 test("saving a report resolves a fresh location when Use location was skipped", async ({ page }) => {
   const posted = await reportFlow(page);
   await page.getByText("Escalator or lift down").click();
+  await requireFakeCamera(page);
   await page.getByRole("button", { name: /Open the camera/ }).click();
   await page.getByRole("button", { name: "Take photo" }).click();
   await page.getByRole("button", { name: /Save report/ }).click();
@@ -1103,6 +1154,7 @@ test("a rejected report is not saved and says which check failed", async ({ page
   await reportFlow(page, { verdict: "rejected" });
   await page.getByRole("button", { name: /Use location|Recheck/ }).click();
   await page.getByText("Escalator or lift down").click();
+  await requireFakeCamera(page);
   await page.getByRole("button", { name: /Open the camera/ }).click();
   await page.getByRole("button", { name: "Take photo" }).click();
   await page.getByRole("button", { name: /Save report/ }).click();

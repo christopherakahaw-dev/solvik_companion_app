@@ -33,7 +33,8 @@ export function forecastSlots(slots, now = Date.now()) {
 
 export function journeyDuration(minutes) {
   const total = Math.max(0, Math.round(Number(minutes) || 0));
-  return total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} m` : `${total} m`;
+  // "min", not "m": distances on the same screens are in metres ("311 m").
+  return total >= 60 ? `${Math.floor(total / 60)} h ${total % 60} min` : `${total} min`;
 }
 
 export function arrivalClockLabel(value) {
