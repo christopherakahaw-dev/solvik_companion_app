@@ -1286,3 +1286,60 @@ test("the app is installable: manifest and icons are served", async ({ page, req
   expect(manifest.icons.some((icon) => icon.purpose === "maskable")).toBe(true);
   expect((await request.get(await page.locator('link[rel="apple-touch-icon"]').getAttribute("href"))).ok()).toBe(true);
 });
+// Google Maps-style sheet: tracks the finger, snaps, flicks. Driven with real
+// touch events through the DevTools protocol, so Chromium only.
+test("the route sheet follows the finger, settles on a snap, and flicks", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "Touch is synthesised through Chromium's DevTools protocol.");
+  await setup(page, { home, school }, { tripOptions: [{ ...option, walkOnly: false, transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 0 }] }] });
+  await pickDestination(page);
+  await expect(page.getByRole("button", { name: "Go", exact: true }).first()).toBeVisible();
+  const wrap = page.locator(".sv-route-sheet-wrap");
+  const visible = () => wrap.evaluate((el) => Math.round(el.parentElement.getBoundingClientRect().bottom - el.getBoundingClientRect().top));
+  const settled = async () => { await page.waitForTimeout(450); return visible(); };
+  const cdp = await page.context().newCDPSession(page);
+  // Each event carries its own timestamp, as a real finger's would; the protocol
+  // itself delivers them ~80 ms apart, far slower than a flick.
+  let clock = Date.now() / 1000;
+  const touch = (type, x, y, gapMs = 16) => { clock += gapMs / 1000; return cdp.send("Input.dispatchTouchEvent", { type, timestamp: clock, touchPoints: type === "touchEnd" ? [] : [{ x, y }] }); };
+  const drag = async (fromY, toY, { steps = 12, stepMs = 16, check } = {}) => {
+    const x = 200;
+    await touch("touchStart", x, fromY);
+    for (let i = 1; i <= steps; i++) {
+      await touch("touchMove", x, fromY + ((toY - fromY) * i) / steps, stepMs);
+      await page.waitForTimeout(stepMs);
+      if (check && i === Math.floor(steps / 2)) await check(fromY + ((toY - fromY) * i) / steps);
+    }
+    await touch("touchEnd", x, toY, stepMs);
+  };
+  const handleY = async () => { const box = await page.locator(".sv-route-sheet-toolbar").boundingBox(); return box.y + box.height / 2; };
+
+  const start = await settled();
+  // Mid-drag the sheet is exactly where the finger is: no lag, no render wait.
+  await drag(await handleY(), (await handleY()) - 240, {
+    steps: 16, stepMs: 25,
+    check: async () => {
+      const mid = await visible();
+      expect(Math.abs(mid - (start + 120))).toBeLessThanOrEqual(3);
+    },
+  });
+  const afterSlow = await settled();
+  expect(afterSlow).toBeGreaterThan(start + 100);
+  const snaps = await page.evaluate(() => {
+    const H = document.querySelector(".sv-route-sheet-wrap").parentElement.getBoundingClientRect().height;
+    return [Math.min(190, H * 0.3), Math.min(H * 0.5, H - 70), Math.max(150, H - 70)].map(Math.round);
+  });
+  expect(snaps.some((s) => Math.abs(s - afterSlow) <= 2), `settled on a snap (${afterSlow} vs ${snaps})`).toBe(true);
+
+  // A short, fast flick down goes one snap down even though it barely moved.
+  const before = afterSlow;
+  await drag(await handleY(), (await handleY()) + 60, { steps: 3, stepMs: 8 });
+  const afterFlick = await settled();
+  expect(afterFlick).toBeLessThan(before);
+  expect(snaps.some((s) => Math.abs(s - afterFlick) <= 2)).toBe(true);
+
+  // A tap on the grab bar opens it fully.
+  await touch("touchStart", 200, await handleY());
+  await touch("touchEnd", 200, await handleY());
+  expect(Math.abs((await settled()) - snaps[2])).toBeLessThanOrEqual(2);
+  await expect(wrap).toHaveClass(/is-expanded/);
+});
