@@ -425,6 +425,12 @@ export function MapScreen({ v }) {
                   {v.recordedNotice}
                 </div>
               )}
+              {v.savedNotice && (
+                <div role="status" style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 11px", borderRadius: 999, background: "var(--sand-100,rgba(32,30,29,.05))", font: "var(--weight-semibold) 11.5px/1.2 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
+                  <Icon name="wifi-off" size={14} />
+                  {v.savedNotice}
+                </div>
+              )}
               {v.tripsPending && (
                 <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "18px 0", font: "var(--type-body)", color: "var(--text-muted)" }}>
                   <Icon name="loader-2" size={16} style={{ animation: "sv-spin 900ms linear infinite" }} />
@@ -566,7 +572,7 @@ export function MapScreen({ v }) {
               ))}
             </div>
             <div style={{ flex: "none", padding: "8px 0 14px", font: "var(--weight-regular) 10px/1.3 var(--font-body)", color: "var(--text-muted)", textAlign: "center", background: "var(--surface-card)" }}>
-              Map data © OneMap · Singapore Land Authority
+              Routes from OneMap · Singapore Land Authority
             </div>
           </section>
         </div>
@@ -757,11 +763,9 @@ export function MapScreen({ v }) {
         </div>
       )}
 
-      {v.showMapAttrib && (
-        <div style={{ position: "absolute", left: 16, bottom: 92, font: "var(--weight-regular) 10px/1.3 var(--font-body)", color: "var(--sand-700)", textShadow: "0 1px 2px rgba(255,255,255,.9)" }}>
-          Map data © OneMap · Singapore Land Authority
-        </div>
-      )}
+      {/* The map credit is Leaflet's own control, which names whichever base is
+          actually showing. A fixed "Map data © OneMap" line used to sit here
+          too: it overlapped that control and was wrong on the OSM base. */}
     </div>
   );
 }

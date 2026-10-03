@@ -43,6 +43,35 @@ export function AccountScreen({ v }) {
         </section>
       )}
 
+      <section className="sv-account-section" style={{ marginTop: 12 }} aria-label="App settings">
+        <div className="sv-account-section-title">
+          <span><Icon name="smartphone" size={18} /></span>
+          <div><h3>App</h3><p>How Solvik looks, and keeping it on your home screen.</p></div>
+        </div>
+
+        <div className="sv-theme-picker" role="radiogroup" aria-label="Appearance">
+          {v.themeChoices.map((choice) => (
+            <button key={choice.id} type="button" role="radio" aria-checked={choice.on} className={choice.on ? "is-active" : ""} onClick={choice.pick}>
+              <Icon name={choice.id === "dark" ? "moon" : choice.id === "light" ? "sun" : "sun-moon"} size={15} />
+              {choice.label}
+            </button>
+          ))}
+        </div>
+
+        {v.installState === "installed" && (
+          <p className="sv-account-local-note"><Icon name="circle-check" size={15} />Installed. Recently planned routes open even without signal.</p>
+        )}
+        {v.installState === "prompt" && (
+          <>
+            <p className="sv-account-local-note"><Icon name="wifi-off" size={15} />Opens full screen from your home screen, and recently planned routes still open without signal.</p>
+            <Button variant="primary" size="sm" iconLeft="download" onClick={v.installApp}>Install Solvik</Button>
+          </>
+        )}
+        {v.installState === "ios" && (
+          <p className="sv-account-local-note"><Icon name="share" size={15} />To install on iPhone: tap Share in Safari, then Add to Home Screen. Recently planned routes then open even without signal.</p>
+        )}
+      </section>
+
       <div className="sv-account-page-grid">
         <section className="sv-account-section">
           <div className="sv-account-section-title">

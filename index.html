@@ -7,7 +7,23 @@
     <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
     <meta name="application-name" content="Solvik" />
     <link rel="icon" type="image/svg+xml" href="/solvik-favicon.svg?v=2" />
+    <!-- Installable: "Add to Home Screen" opens full screen with Solvik's own icon. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Solvik" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>Solvik · Smarter Commutes</title>
+    <!-- Applies the saved theme before first paint (same rules as src/lib/theme.js). -->
+    <script>
+      (function () {
+        var choice = "system";
+        try { choice = JSON.parse(localStorage.getItem("solvik:theme")) || "system"; } catch (e) {}
+        var dark = choice === "dark" || (choice !== "light" && window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+        if (dark) document.querySelector('meta[name="theme-color"]').setAttribute("content", "#141312");
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

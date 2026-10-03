@@ -28,6 +28,9 @@ import { getPosition, watchPosition, clearWatch, messageForError, getLastPositio
 import { acceptFix, alongMAtTime, coordAt, stepAtTime, timeAtAlongM, STALE_FIX_MS } from "../lib/navProgress";
 import { metresBetween, bearingBetween } from "../lib/geometry";
 import { subscribeHeading } from "../lib/compass";
+import { affectedDirection, describeAffectedSegment } from "../lib/stationNames";
+import { looksOffline, rememberRoutes, savedRouteKey, savedRoutesFor } from "../lib/savedRoutes";
+import { THEME_CHOICES, applyTheme, followSystemTheme, setTheme, storedTheme } from "../lib/theme";
 import { resolveRouteOrigin } from "../lib/routeOrigin";
 import { routeFailure, routeRecoveryModes } from "../lib/routeFailure";
 import { addressDetail, durationLabel, forecastSlots, remapOptionLabels, singaporeClock } from "../lib/display";
@@ -136,6 +139,8 @@ export class AppLogic extends Component {
     addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcAlertTab: "personal", fcWatch: [], crowdOn: false,
     hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
+    theme: storedTheme(),
+    canInstall: false,
     authUser: loadStored(KEYS.authUser, null),
     isGuest: loadStored(KEYS.isGuest, false) || predatesAccounts(),
     authBusy: false,
@@ -196,8 +201,49 @@ export class AppLogic extends Component {
   // componentDidMount, and in a class the later definition replaces the
   // earlier one — so none of this ran: no compass heading, no demo hooks, and a
   // signed-in account was never refreshed or signed out when its session expired.
+  // Losing the connection is said once, and a saved route on screen is swapped
+  // for a live one as soon as it comes back.
+  handleOffline = () => this.flash("You're offline · routes you planned recently still open");
+  handleOnline = () => {
+    if (this.state.trips?.savedAt) {
+      this.setState({ trips: { key: null, options: [], pending: false, error: null } }, this.loadTripOptions);
+      this.flash("Back online · refreshing your route");
+    }
+  };
+
+  // Android/desktop Chrome offer their own install prompt, which can only be
+  // shown from a tap; keep the event until one comes. iOS has no such event —
+  // the screen explains Share → Add to Home Screen instead.
+  handleInstallAvailable = (event) => {
+    event.preventDefault();
+    this._installEvent = event;
+    this.setState({ canInstall: true });
+  };
+  handleInstalled = () => {
+    this._installEvent = null;
+    this.setState({ canInstall: false });
+    this.flash("Solvik is on your home screen");
+  };
+  installApp = async () => {
+    const event = this._installEvent;
+    if (!event) return;
+    this._installEvent = null;
+    this.setState({ canInstall: false });
+    try {
+      await event.prompt();
+    } catch {
+      // The browser declined to show it; nothing more to do.
+    }
+  };
+
   startDeviceAndAccount() {
     if (typeof window !== "undefined") {
+      window.addEventListener("offline", this.handleOffline);
+      window.addEventListener("online", this.handleOnline);
+      window.addEventListener("beforeinstallprompt", this.handleInstallAvailable);
+      window.addEventListener("appinstalled", this.handleInstalled);
+      applyTheme(this.state.theme);
+      this._unfollowTheme = followSystemTheme();
       window.solvikSeedTrips = this.seedSampleTrips;
       window.solvikSimulateDisruption = this.toggleDemoAlert;
     }
@@ -2300,6 +2346,13 @@ export class AppLogic extends Component {
   }
   componentWillUnmount() {
     if (this._unsubHeading) this._unsubHeading();
+    if (typeof window !== "undefined") {
+      window.removeEventListener("offline", this.handleOffline);
+      window.removeEventListener("online", this.handleOnline);
+      window.removeEventListener("beforeinstallprompt", this.handleInstallAvailable);
+      window.removeEventListener("appinstalled", this.handleInstalled);
+    }
+    if (this._unfollowTheme) this._unfollowTheme();
     this._crowdBarObserver?.disconnect();
     clearTimeout(this.bt);
     clearInterval(this.iv);
@@ -2569,6 +2622,11 @@ export class AppLogic extends Component {
       // the route it replaced rather than appearing out of nowhere.
       const before = !tripAvoid && !(tripAvoidStations || []).length ? null : (this.state.trips.options || [])[0] || this.state.tripBefore || null;
       this.setState({ trips: { key, options: [], pending: true, error: null }, tripBefore: before });
+      // Only a plain "leave now" plan is kept for offline use: an avoid-route or
+      // a future departure answers a question that will not be asked again.
+      const saveKey = !tripAvoid && !(tripAvoidStations || []).length && !tripDeparture
+        ? savedRouteKey({ origin, destLL: dest.ll, destName: dest.name, mode: tripMode })
+        : null;
       return getTripOptions(origin, dest.ll, tripMode, dest.name, { avoid: tripAvoid, avoidStations: tripAvoidStations, date: tripDeparture?.date, time: tripDeparture?.time })
       .then((options) => {
         if (this.state.dest !== dest || this.state.tripMode !== tripMode || this.state.trips.key !== key) return;
@@ -2584,10 +2642,18 @@ export class AppLogic extends Component {
           return;
         }
         this.setState({ trips: { key, options, pending: false, error: null, recorded: !!options.recorded, avoided: options.avoided || null }, tripRoute: 0, tripCollapsed: true });
+        if (saveKey) rememberRoutes(saveKey, options);
       })
       .catch((err) => {
         if (this.state.dest !== dest || this.state.trips.key !== key) return;
-        this.setState({ trips: { key, options: [], pending: false, error: String(err.message || err) } });
+        // With no signal, the route you planned earlier beats an error — said
+        // to be saved, with its time, and stripped of live crowding.
+        const saved = saveKey && looksOffline(err) ? savedRoutesFor(saveKey) : null;
+        if (saved) {
+          this.setState({ trips: { key, options: saved.options, pending: false, error: null, savedAt: saved.savedAt }, tripRoute: 0, tripCollapsed: true });
+          return;
+        }
+        this.setState({ trips: { key, options: [], pending: false, error: looksOffline(err) ? "You're offline. Routes need a connection, and none was saved for this trip yet." : String(err.message || err) } });
       });
     };
     request(resolvedOrigin.ll);
@@ -2613,11 +2679,8 @@ export class AppLogic extends Component {
           tag: "Delay",
           sev: "warn",
           time: "Now",
-          title: `${seg.Line || "Line"} — ${seg.Direction || "service"} affected`,
-          detail: [
-            seg.StartStation && seg.EndStation ? `Between ${seg.StartStation} and ${seg.EndStation}.` : "",
-            seg.Stations ? `Stations: ${seg.Stations}` : "",
-          ].filter(Boolean).join(" "),
+          title: `${seg.Line || "Line"} · ${affectedDirection(seg.Direction)}`,
+          detail: describeAffectedSegment(seg),
           // Kept so a commuter report at one of these stations can be matched
           // against LTA's own record of the same problem.
           stations: String(seg.Stations || "").split(",").map((c) => c.trim().toUpperCase()).filter(Boolean),
@@ -2927,6 +2990,27 @@ export class AppLogic extends Component {
     this.setState({ toast });
     if (this.tt) clearTimeout(this.tt);
     this.tt = setTimeout(() => this.setState({ toast: null }), 2600);
+  };
+
+  // The phone's share sheet where there is one (most phones); otherwise the
+  // clipboard, so a desktop browser still gets something to paste.
+  shareEta = async (text) => {
+    try {
+      if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+        await navigator.share({ text });
+        return;
+      }
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        this.flash("ETA copied · paste it into any chat");
+        return;
+      }
+      this.flash("Sharing isn't available in this browser");
+    } catch (error) {
+      // Closing the share sheet is a choice, not a failure.
+      if (error?.name === "AbortError") return;
+      this.flash("Couldn't share your ETA");
+    }
   };
 
   redeemReward = (reward) => {
@@ -3331,6 +3415,13 @@ export class AppLogic extends Component {
       navStepLabel: arrived ? "Trip complete" : navArr.length ? "Step " + (navIdx + 1) + " of " + navArr.length : "Preparing trip",
       navEta: navOpt ? singaporeClock(Date.now() + Math.max(0, navTotal - navElapsed) * 1000) : "",
       navRemainLabel: arrived ? "Arrived · " + destShort : Math.max(1, Math.ceil((navTotal - navElapsed) / 60)) + " min left · " + destShort,
+      // Through the phone's own share sheet: Solvik sends nothing anywhere. The
+      // message says "around" and names Solvik as the source, because the time
+      // is an estimate (from the timetable until GPS places you on the route).
+      navCanShare: Boolean(navOpt) && !arrived,
+      navShare: () => this.shareEta(
+        `On my way to ${destShort}, arriving around ${singaporeClock(Date.now() + Math.max(0, navTotal - navElapsed) * 1000)} (Solvik estimate${navByGps ? "" : " from the timetable"}).`
+      ),
       navTrackNote,
       navTrackTone: s.navFixStatus === "denied" || navStale || s.navFixStatus === "off-route" ? "warn" : "muted",
       // The map follows the real position; where there isn't one, it frames the
@@ -3715,7 +3806,6 @@ export class AppLogic extends Component {
       backToSearch: () => this.chooseDest(null),
       pinCoord: s.pin ? s.pin.ll : null,
       hasPin: !!s.pin && !dest && !s.fcPin && !(s.searchTarget === "area" && s.searchOpen),
-      showMapAttrib: !dest && !s.pin && !s.fcPin && s.crowdOn === false,
       showPinHint: !s.pin && !dest && !s.searchOpen && !q && !s.fcPin && s.crowdOn === false,
       pinName: s.pin ? s.pin.name : "",
       pinDetail: s.pin ? s.pin.detail : "",
@@ -3824,6 +3914,9 @@ export class AppLogic extends Component {
         ].filter(Boolean);
         return trips.recorded ? "Sample route only — it does not match your selected places. Live routing is unavailable." : sources.length ? `Recorded ${sources.join(" and ")} — the live service didn't answer` : "";
       })(),
+      savedNotice: trips.savedAt
+        ? `Offline · saved at ${singaporeClock(trips.savedAt)}. Times and crowding may have changed since.`
+        : "",
       tripsPending: !!trips.pending,
       tripsError: trips.error || null,
       tripRecovery: trips.error ? {
@@ -3900,6 +3993,22 @@ export class AppLogic extends Component {
       }),
       goAccount: () => this.go("account"),
       goRewards: () => this.go("rewards"),
+      // "installed" | "prompt" (Android/desktop Chrome) | "ios" | "unavailable"
+      installState: (() => {
+        if (typeof window === "undefined") return "unavailable";
+        const standalone = window.matchMedia?.("(display-mode: standalone)").matches || window.navigator.standalone === true;
+        if (standalone) return "installed";
+        if (s.canInstall) return "prompt";
+        const ua = window.navigator.userAgent || "";
+        const ios = /iphone|ipad|ipod/i.test(ua) || (/macintosh/i.test(ua) && window.navigator.maxTouchPoints > 1);
+        return ios ? "ios" : "unavailable";
+      })(),
+      installApp: this.installApp,
+      themeChoices: THEME_CHOICES.map((choice) => ({
+        ...choice,
+        on: choice.id === s.theme,
+        pick: () => { setTheme(choice.id); this.setState({ theme: choice.id }); },
+      })),
       ...this.forecastVals(s),
       reportPick: s.rep === "pick", reportConfirm: s.rep === "confirm", reportDone: s.rep === "done",
       reportTypes: rTypes, chosenLabel: chosen.label, chosenPts: chosen.pts, severities, severityQ: sevSet.q,
@@ -4015,10 +4124,23 @@ export class AppLogic extends Component {
       pendingLine: pendingPoints > 0
         ? `${pendingPoints.toLocaleString()} points waiting on someone else to report the same thing, or on LTA confirming it.`
         : "",
-      // Derived from points that are now real, rather than a fixed label.
-      tierName: confirmedPoints >= 3100 ? "Gold tier" : confirmedPoints >= 1000 ? "Silver tier" : "Bronze tier",
-      toGold: Math.max(0, 3100 - confirmedPoints).toLocaleString(),
-      tierBarStyle: { width: Math.round(Math.max(0, Math.min(1, (confirmedPoints - 1000) / 2100)) * 100) + "%", height: "100%", background: "var(--crowd-light)", borderRadius: 999, transition: "width var(--dur-slow) var(--ease-out)" },
+      // Derived from points that are now real, rather than a fixed label. The
+      // bar runs from the tier you are in to the next one; it used to always
+      // read "Silver … Gold" under a Bronze badge.
+      ...(() => {
+        const tiers = [{ name: "Bronze", at: 0 }, { name: "Silver", at: 1000 }, { name: "Gold", at: 3100 }];
+        const index = tiers.reduce((found, tier, i) => (confirmedPoints >= tier.at ? i : found), 0);
+        const current = tiers[index];
+        const next = tiers[index + 1] || null;
+        const progress = next ? (confirmedPoints - current.at) / (next.at - current.at) : 1;
+        return {
+          tierName: `${current.name} tier`,
+          tierFrom: current.name,
+          tierTo: next ? next.name : null,
+          tierGapLine: next ? `${(next.at - confirmedPoints).toLocaleString()} points to ${next.name}` : "Top tier reached",
+          tierBarStyle: { width: Math.round(Math.max(0, Math.min(1, progress)) * 100) + "%", height: "100%", background: "var(--crowd-light)", borderRadius: 999, transition: "width var(--dur-slow) var(--ease-out)" },
+        };
+      })(),
       pointStats: [
         { icon: "megaphone", value: String(mine.length), label: "Reports saved" },
         { icon: "badge-check", value: String(mine.filter((r) => r.state === "confirmed").length), label: "Checks passed" },

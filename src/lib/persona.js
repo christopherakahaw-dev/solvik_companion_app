@@ -39,7 +39,7 @@ export const PERSONAS = {
   },
   flexible: {
     id: "flexible",
-    name: "Flexible and Multi-Modal (Default)",
+    name: "Flexible and Multi-Modal",
     blurb: "I'm okay with transfers along my journey.",
     example: "Comfort-first travel with quieter times and more ways to go.",
     mode: "quiet",

@@ -316,8 +316,8 @@ export function PlanScreen({ v }) {
           <SectionLabel>Watched daily</SectionLabel>
           <div style={{ marginLeft: "auto", flex: "none" }}>
             <IconButton
-              icon="pencil"
-              label="Add or edit a watched commute"
+              icon="plus"
+              label="Add a watched commute"
               tone="ghost"
               size="sm"
               onClick={v.openAdd}
@@ -326,8 +326,13 @@ export function PlanScreen({ v }) {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
           {!v.saved.length && (
-            <div style={{ padding: "16px 15px", borderRadius: 20, background: "var(--surface-card)", border: "1px solid var(--border-card)", font: "var(--type-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
-              No commutes yet. Add one and Solvik will watch it before you leave.
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 12, padding: "16px 15px", borderRadius: 20, background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
+              <div style={{ font: "var(--type-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
+                No commutes yet. Add one and Solvik will watch it before you leave.
+              </div>
+              <Button variant="secondary" size="sm" iconLeft="plus" onClick={v.openAdd}>
+                Add a commute
+              </Button>
             </div>
           )}
           {v.saved.map((s, i) => (
