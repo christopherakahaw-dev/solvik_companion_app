@@ -252,16 +252,31 @@ export function MapScreen({ v }) {
               {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && (
                 <div className="sv-nearby-bus-list" aria-label="Nearby bus stop routes">
                   {v.nearbyBusStops.map((stop) => (
-                    <button type="button" className="sv-nearby-bus-row" key={stop.code} onClick={stop.pick} aria-label={`Route to ${stop.name}, stop ${stop.code}`}>
-                      <span className="sv-nearby-bus-code">{stop.code}</span>
-                      <span><strong>{stop.name}</strong><small>{stop.detail}</small></span>
-                      <Icon name="arrow-right" size={16} />
-                    </button>
+                    <div className="sv-nearby-bus-row" key={stop.code}>
+                      <button type="button" className="sv-nearby-bus-row-head" onClick={stop.pick} aria-label={`Route to ${stop.name}, stop ${stop.code}`}>
+                        <span className="sv-nearby-bus-code">{stop.code}</span>
+                        <span><strong>{stop.name}</strong><small>{stop.detail}</small></span>
+                        <Icon name="arrow-right" size={16} />
+                      </button>
+                      {stop.arrivals.status === "ready" ? (
+                        <ul className="sv-stop-arrivals" aria-label={`Buses due at ${stop.name}`}>
+                          {stop.arrivals.services.map((svc) => (
+                            <li key={svc.service} title={svc.title} aria-label={svc.title} className={svc.due ? "" : "is-idle"}>
+                              <strong>{svc.service}</strong>
+                              <span>{svc.next}</span>
+                              {svc.after && <small>{svc.after}</small>}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : stop.arrivals.message ? (
+                        <p className={`sv-stop-arrivals-note${stop.arrivals.status === "error" ? " is-error" : ""}`} role="status">{stop.arrivals.message}</p>
+                      ) : null}
+                    </div>
                   ))}
                 </div>
               )}
               {!v.nearbyBusStopsPending && !v.nearbyBusStopsError && v.nearbyBusStops.length > 0 && (
-                <div className="sv-nearby-bus-source">Live stop directory from LTA DataMall</div>
+                <div className="sv-nearby-bus-source">{v.stopArrivalsNote || "Live stop directory from LTA DataMall"}</div>
               )}
             </Card>
           </div>

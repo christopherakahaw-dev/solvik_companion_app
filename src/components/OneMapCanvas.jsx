@@ -442,7 +442,9 @@ export function OneMapCanvas({
           iconAnchor: [16, 34],
         }),
       }).addTo(map);
-      marker.bindTooltip(label, { direction: "top", offset: [0, -27], className: "sv-nearby-bus-tooltip" });
+      // Leaflet renders tooltip strings as HTML, so LTA's text is escaped.
+      const tooltip = `<strong>${escapeHtml(label)}</strong>${stop.arrivalsLine ? `<span class="sv-nearby-bus-tooltip-times">${escapeHtml(stop.arrivalsLine)}</span>` : ""}`;
+      marker.bindTooltip(tooltip, { direction: "top", offset: [0, -27], className: "sv-nearby-bus-tooltip" });
       layersRef.current.push(marker);
     });
     if (safeZones.length) {

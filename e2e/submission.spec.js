@@ -1,9 +1,16 @@
 import { test, expect } from "@playwright/test";
 
 const pageErrors = new WeakMap();
+// WebKit reports a fetch cut off by a reload or navigation as a page error
+// ("... due to access control checks") even when the app catches it — every
+// /api/ call here has a .catch. Chromium does not. Only that message is
+// excused; any other uncaught error still fails the test.
+const CANCELLED_FETCH = /due to access control checks\.?$/;
 test.beforeEach(async ({ page }) => {
   pageErrors.set(page, []);
-  page.on("pageerror", error => pageErrors.get(page).push(error.message));
+  page.on("pageerror", error => {
+    if (!CANCELLED_FETCH.test(error.message)) pageErrors.get(page).push(error.message);
+  });
 });
 test.afterEach(async ({ page }) => {
   expect(pageErrors.get(page), "No uncaught browser errors").toEqual([]);
@@ -48,6 +55,15 @@ async function setup(page, places = { home, school }, options = {}) {
       { code: "28031", name: "Opp Blk 413", road: "Commonwealth Ave West", lat: 1.3112, lng: 103.7701, distanceM: 24 },
       { code: "28039", name: "Blk 413", road: "Commonwealth Ave West", lat: 1.3121, lng: 103.771, distanceM: 160 },
     ] };
+    else if (path.endsWith("stop-arrivals")) response = options.stopArrivals || { at: new Date().toISOString(), stops: {
+      "28031": { stopCode: "28031", reason: null, services: [
+        { service: "95", buses: [{ etaMins: 2, load: "light", accessible: true, monitored: true }, { etaMins: 11, load: "light", accessible: true, monitored: true }] },
+        { service: "185", buses: [{ etaMins: 0, load: "moderate", accessible: true, monitored: true }] },
+        { service: "196", buses: [{ etaMins: 6, load: "light", accessible: false, monitored: false }] },
+        { service: "282", buses: [] },
+      ] },
+      "28039": { stopCode: "28039", reason: "none-running", services: [] },
+    } };
     else if (path.endsWith("ai")) response = options.aiDecision
       ? { configured: true, model: "gemini-3.5-flash-lite", decision: options.aiDecision }
       : { configured: false };
@@ -120,7 +136,7 @@ test("recent searches stay compact and close when search focus ends", async ({ p
   }
 });
 
-test("bus stops near me uses the device location and opens routing", async ({ page }) => {
+test("bus stops near me uses the device location and opens routing", async ({ page }, info) => {
   await setup(page);
   const requests = [];
   page.on("request", (request) => {
@@ -140,9 +156,26 @@ test("bus stops near me uses the device location and opens routing", async ({ pa
   expect(requests).toHaveLength(1);
   expect(requests[0]).toMatchObject({ lat: 1.34, lng: 103.7 });
   await expect(page.locator(".sv-nearby-bus-marker")).toHaveCount(2);
+  // Every service due at the stop, with its next bus and the one after.
+  const due = tray.getByRole("list", { name: "Buses due at Opp Blk 413" });
+  await expect(due.getByRole("listitem")).toHaveCount(4);
+  await expect(due.getByRole("listitem", { name: /^Bus 95: 2 min, then 11 min/ })).toBeVisible();
+  await expect(due.getByRole("listitem", { name: /^Bus 185: Arr/ })).toBeVisible();
+  await expect(due.getByRole("listitem", { name: /^Bus 196: ~6 min .*scheduled time, not a tracked bus/ })).toBeVisible();
+  await expect(due.getByRole("listitem", { name: "Bus 282: no bus due" })).toBeVisible();
+  // A stop with nothing running says so instead of showing a blank.
+  await expect(page.locator(".sv-nearby-bus-row", { hasText: "Blk 413" }).filter({ hasNotText: "Opp" }).getByText("No buses due right now.")).toBeVisible();
+  await expect(tray.getByText(/^Live from LTA DataMall · updated \d{2}:\d{2}/)).toBeVisible();
+  // The map pin says the same, soonest first. (The stops sit just off this
+  // test's map view, so the pin's hover is dispatched rather than moused.)
+  await page.locator(".sv-nearby-bus-marker").first().dispatchEvent("mouseover");
+  await expect(page.locator(".sv-nearby-bus-tooltip").first()).toContainText("185 Arr · 95 2 min · 196 ~6 min");
+
   const trayBox = await tray.boundingBox();
   const navBox = await page.getByRole("navigation", { name: "Main navigation" }).boundingBox();
   expect(trayBox.y + trayBox.height).toBeLessThanOrEqual(navBox.y + 1);
+  await noOverflow(page);
+  await page.screenshot({ path: info.outputPath("nearby-arrivals.png") });
 
   await page.getByRole("button", { name: /Route to Opp Blk 413/ }).click();
   await expect(page.getByRole("button", { name: "Change destination" }).getByText("Opp Blk 413", { exact: true })).toBeVisible();

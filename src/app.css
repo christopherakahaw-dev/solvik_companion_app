@@ -943,8 +943,25 @@
 .sv-nearby-bus-tray .sv-nearby-bus-head > span { width: 30px; height: 30px; border-radius: 10px; }
 .sv-nearby-bus-list { display: flex; gap: 8px; padding: 8px 1px 3px; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x proximity; overscroll-behavior-x: contain; scrollbar-width: none; }
 .sv-nearby-bus-list::-webkit-scrollbar { display: none; }
-.sv-nearby-bus-tray .sv-nearby-bus-row { flex: 0 0 min(72vw, 230px); min-height: 70px; grid-template-columns: auto minmax(0,1fr) 16px; gap: 8px; padding: 9px 10px; border: 1px solid var(--border-card); border-radius: 14px; background: var(--surface-card); scroll-snap-align: start; }
-.sv-nearby-bus-tray .sv-nearby-bus-row:hover { border-color: color-mix(in oklch, var(--accent) 45%, var(--border-card)); background: var(--accent-soft); }
+/* Each stop is a card: the stop itself (tap to route there), then every bus
+   service due at it. */
+.sv-nearby-bus-tray .sv-nearby-bus-row { flex: 0 0 min(78vw, 256px); min-height: 70px; display: flex; flex-direction: column; gap: 8px; padding: 9px 10px; border: 1px solid var(--border-card); border-radius: 14px; background: var(--surface-card); scroll-snap-align: start; cursor: default; }
+.sv-nearby-bus-tray .sv-nearby-bus-row:hover { border-color: color-mix(in oklch, var(--accent) 45%, var(--border-card)); background: var(--surface-card); }
+.sv-nearby-bus-row-head { width: 100%; display: grid; grid-template-columns: auto minmax(0,1fr) 16px; align-items: center; gap: 8px; padding: 0; border: 0; cursor: pointer; text-align: left; color: var(--text-body); background: transparent; }
+.sv-nearby-bus-row-head > span:nth-child(2) { min-width: 0; }
+.sv-nearby-bus-row-head:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 8px; }
+.sv-stop-arrivals { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 5px; max-height: 118px; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; }
+/* Service number | next bus, with the bus after on its own line beneath, so
+   neither is ever cut off on a narrow card. */
+.sv-stop-arrivals li { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: baseline; column-gap: 6px; row-gap: 3px; padding: 6px 7px; border-radius: 9px; background: var(--surface-sunken); }
+.sv-stop-arrivals strong { min-width: 2.4em; color: var(--text-strong); font: var(--weight-heavy) 12px/1 var(--font-numeric); }
+.sv-stop-arrivals span { color: var(--text-accent); font: var(--weight-bold) 12px/1 var(--font-body); white-space: nowrap; }
+.sv-stop-arrivals small { grid-column: 2; color: var(--text-muted); font: var(--weight-medium) 10.5px/1 var(--font-body); white-space: nowrap; }
+.sv-stop-arrivals small::before { content: "then "; }
+.sv-stop-arrivals li.is-idle span { color: var(--text-muted); font-weight: var(--weight-medium); }
+.sv-stop-arrivals-note { margin: 0; color: var(--text-muted); font: var(--weight-medium) 11px/1.3 var(--font-body); text-wrap: pretty; }
+.sv-stop-arrivals-note.is-error { color: var(--status-fault); }
+.sv-nearby-bus-tooltip-times { display: block; margin-top: 3px; color: var(--text-accent); font-weight: var(--weight-semibold); }
 .sv-nearby-bus-tray .sv-nearby-bus-source { padding-top: 6px; }
 @media (min-width: 600px) {
   .sv-nearby-bus-tray { left: 50% !important; right: auto !important; bottom: 16px; width: min(760px, calc(100% - 160px)) !important; transform: translateX(-50%); }

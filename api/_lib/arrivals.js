@@ -9,14 +9,8 @@ import { normalizeStopCode } from "./busStops.js";
 
 export const ARRIVAL_PATHS = ["v3/BusArrival", "BusArrivalv2"];
 
-export function parseArrivals(payload, service) {
-  const services = (payload && payload.Services) || [];
-  const svc = service
-    ? services.find((s) => String(s.ServiceNo) === String(service))
-    : services[0];
-  if (!svc) return { buses: [], reason: services.length ? "not-serving" : "none-running" };
-
-  const buses = ["NextBus", "NextBus2", "NextBus3"]
+function busesOf(svc) {
+  return ["NextBus", "NextBus2", "NextBus3"]
     .map((key) => svc[key])
     .filter((bus) => bus && bus.EstimatedArrival)
     .map((bus) => ({
@@ -29,8 +23,38 @@ export function parseArrivals(payload, service) {
     }))
     .filter((bus) => isFinite(bus.etaMins))
     .sort((a, b) => a.etaMins - b.etaMins);
+}
 
+export function parseArrivals(payload, service) {
+  const services = (payload && payload.Services) || [];
+  const svc = service
+    ? services.find((s) => String(s.ServiceNo) === String(service))
+    : services[0];
+  if (!svc) return { buses: [], reason: services.length ? "not-serving" : "none-running" };
+
+  const buses = busesOf(svc);
   return buses.length ? { buses, reason: null } : { buses: [], reason: "none-running" };
+}
+
+// "2" < "10" < "10e" < "160" < "160A": by number first, then any suffix.
+export function compareServiceNo(a, b) {
+  const na = parseInt(a, 10);
+  const nb = parseInt(b, 10);
+  if (Number.isFinite(na) && Number.isFinite(nb) && na !== nb) return na - nb;
+  if (Number.isFinite(na) !== Number.isFinite(nb)) return Number.isFinite(na) ? -1 : 1;
+  return String(a).localeCompare(String(b));
+}
+
+// Every service calling at a stop, for the stop itself rather than one route
+// leg: LTA answers a query with no ServiceNo with all of them. A service with
+// no bus coming keeps its row with an empty list — "no more 95 tonight" is
+// worth seeing, where a missing row would just look like the 95 doesn't stop.
+export function parseStopArrivals(payload) {
+  const services = ((payload && payload.Services) || [])
+    .map((svc) => ({ service: String(svc.ServiceNo || ""), operator: svc.Operator || null, buses: busesOf(svc) }))
+    .filter((svc) => svc.service)
+    .sort((a, b) => compareServiceNo(a.service, b.service));
+  return { services, reason: services.length ? null : "none-running" };
 }
 
 // stopCode may be any spelling a routing reply uses; it is normalised here.
@@ -43,5 +67,17 @@ export async function nextBuses(stopCode, service) {
   } catch (err) {
     const msg = String((err && err.message) || err);
     return { buses: [], reason: msg.includes("not configured") ? "no-key" : "upstream", stopCode: code };
+  }
+}
+
+export async function stopArrivals(stopCode) {
+  const code = normalizeStopCode(stopCode);
+  if (!code) return { services: [], reason: "unknown-stop", stopCode: null };
+  try {
+    const data = await ltaFetch(ARRIVAL_PATHS, { BusStopCode: code });
+    return { ...parseStopArrivals(data), stopCode: code };
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    return { services: [], reason: msg.includes("not configured") ? "no-key" : "upstream", stopCode: code };
   }
 }
