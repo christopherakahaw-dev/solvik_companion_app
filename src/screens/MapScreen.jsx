@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Icon, IconButton, SearchField, Card, Tag, Button } from "../design-system";
 import { OneMapCanvas } from "../components/OneMapCanvas";
 import { PlacePicker } from "../components/PlacePicker";
@@ -96,8 +96,32 @@ export function MapScreen({ v }) {
     return () => cancelAnimationFrame(frame);
   }, [v.searchTarget, v.mapSearch]);
 
+  // The map credit is a licence condition, so it has to stay visible: raise it
+  // just above whichever panel covers the bottom of the map (dropped-pin card,
+  // nearby stops, route sheet). Panels opt in with data-covers-map. Measured
+  // after every render, because their heights depend on content and dragging.
+  const screenRef = useRef(null);
+  useLayoutEffect(() => {
+    const root = screenRef.current;
+    if (!root) return;
+    const box = root.getBoundingClientRect();
+    let covered = 0;
+    root.querySelectorAll("[data-covers-map]").forEach((el) => {
+      const r = el.getBoundingClientRect();
+      if (r.height > 0 && r.top < box.bottom && r.bottom > box.bottom - 140) covered = Math.max(covered, box.bottom - r.top);
+    });
+    const value = covered > 0 ? `${Math.round(covered + 8)}px` : "";
+    // With a panel over nearly all of it (the expanded route sheet), the map is
+    // a strip behind the top buttons; the credit would only collide with them.
+    const hidden = box.height - covered < 140;
+    if (root.classList.contains("is-map-covered") !== hidden) root.classList.toggle("is-map-covered", hidden);
+    if (root.style.getPropertyValue("--sv-map-credit-bottom") === value) return;
+    if (value) root.style.setProperty("--sv-map-credit-bottom", value);
+    else root.style.removeProperty("--sv-map-credit-bottom");
+  });
+
   return (
-    <div className={`sv-map-screen${v.mapRoute ? " has-route" : ""}${v.searchOpen ? " is-search-focused" : ""}`} style={{ position: "absolute", inset: 0 }}>
+    <div ref={screenRef} className={`sv-map-screen${v.mapRoute ? " has-route" : ""}${v.searchOpen ? " is-search-focused" : ""}${v.mapRoute && routePanelOpen && v.routeSheetExpanded ? " is-route-expanded" : ""}`} style={{ position: "absolute", inset: 0 }}>
       <OneMapCanvas
         center={v.mapCenter}
         zoom={12}
@@ -232,7 +256,7 @@ export function MapScreen({ v }) {
         )}
 
         {v.showNearbyBusStops && (
-          <div className="sv-map-results sv-nearby-bus-tray" role="region" aria-label="Bus stops near me">
+          <div className="sv-map-results sv-nearby-bus-tray" data-covers-map role="region" aria-label="Bus stops near me">
             <Card className="sv-nearby-bus-card" tone="plain">
               <div className="sv-nearby-bus-head">
                 <span><Icon name="bus-front" size={17} /></span>
@@ -358,6 +382,7 @@ export function MapScreen({ v }) {
         <button
           type="button"
           className="sv-route-summary"
+          data-covers-map
           aria-expanded="false"
           onClick={() => { setDismissedRouteFor(null); setOpenRouteFor(v.destName); }}
         >
@@ -369,7 +394,7 @@ export function MapScreen({ v }) {
       )}
 
       {v.mapRoute && (
-        <div ref={v.setSheetRef} className={`sv-route-sheet-wrap${routePanelOpen ? " is-open" : ""}${v.routeSheetExpanded ? " is-expanded" : ""}`} style={v.sheetWrapStyle}>
+        <div ref={v.setSheetRef} data-covers-map className={`sv-route-sheet-wrap${routePanelOpen ? " is-open" : ""}${v.routeSheetExpanded ? " is-expanded" : ""}`} style={v.sheetWrapStyle}>
           <section ref={routeCardRef} className="sv-route-sheet" style={v.sheetStyle} aria-label="Route options">
             <div className="sv-route-sheet-toolbar" onPointerDown={v.sheetDragStart} style={v.sheetGrabStyle}>
               <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)", margin: "0 auto" }} />
@@ -594,7 +619,7 @@ export function MapScreen({ v }) {
       )}
 
       {v.fcPinned && (
-        <div className="sv-map-card-overlay" style={{ position: "absolute", left: 14, right: 14, bottom: 88, zIndex: 16, padding: "14px 15px 15px", borderRadius: 22, background: "var(--surface-card)", boxShadow: "var(--shadow-sheet)", animation: "sv-rise 300ms cubic-bezier(.16,1,.3,1) both" }}>
+        <div className="sv-map-card-overlay" data-covers-map style={{ position: "absolute", left: 14, right: 14, bottom: 88, zIndex: 16, padding: "14px 15px 15px", borderRadius: 22, background: "var(--surface-card)", boxShadow: "var(--shadow-sheet)", animation: "sv-rise 300ms cubic-bezier(.16,1,.3,1) both" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <span style={styleText(v.fcPinned.dotStyle)} />
             <div style={{ minWidth: 0, flex: 1 }}>
@@ -635,18 +660,18 @@ export function MapScreen({ v }) {
             <div style={{ flex: "none", padding: "12px 0 6px", display: "flex", justifyContent: "center" }}>
               <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)" }} />
             </div>
-            <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 10, padding: "4px 0 12px" }}>
-              <div style={{ font: "var(--type-heading)", letterSpacing: "var(--tracking-heading)", color: "var(--text-strong)" }}>Alerts</div>
-              <div style={styleText(v.fcFaultCountStyle)}>{v.fcFaultCount}</div>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
+            {/* Nothing here may break mid-word on a 320 px phone: the title and
+                count never wrap, the action keeps its line, and Close is an icon. */}
+            <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 8, padding: "4px 0 12px", minWidth: 0 }}>
+              <div style={{ font: "var(--type-heading)", letterSpacing: "var(--tracking-heading)", color: "var(--text-strong)", whiteSpace: "nowrap" }}>Alerts</div>
+              <div style={{ ...styleText(v.fcFaultCountStyle), whiteSpace: "nowrap", flex: "none" }}>{v.fcFaultCount}</div>
+              <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 2, flex: "none" }}>
                 {v.fcHasUnread && (
-                  <Button variant="ghost" size="sm" onClick={v.fcMarkAllRead}>
+                  <Button variant="ghost" size="sm" onClick={v.fcMarkAllRead} style={{ whiteSpace: "nowrap", paddingInline: 10 }}>
                     Mark all read
                   </Button>
                 )}
-                <Button variant="ghost" size="sm" onClick={v.fcToggleAlerts}>
-                  Close
-                </Button>
+                <IconButton icon="x" label="Close alerts" tone="ghost" size="sm" onClick={v.fcToggleAlerts} />
               </div>
             </div>
             <div className="sv-alert-tabs" role="tablist" aria-label="Alert views">
@@ -715,7 +740,7 @@ export function MapScreen({ v }) {
       )}
 
       {v.hasPin && (
-        <div className="sv-map-card-overlay" style={{ position: "absolute", left: 14, right: 14, bottom: 88, background: "var(--surface-card)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-sheet)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 11 }}>
+        <div className="sv-map-card-overlay" data-covers-map style={{ position: "absolute", left: 14, right: 14, bottom: 88, background: "var(--surface-card)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-sheet)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 11 }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
             <div style={{ flex: "none", width: 34, height: 34, borderRadius: 999, background: "var(--accent-soft)", color: "var(--text-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="map-pin" size={18} />
@@ -727,10 +752,10 @@ export function MapScreen({ v }) {
             <IconButton icon="x" label="Remove pin" tone="ghost" size="sm" onClick={v.clearPin} />
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            <Button size="md" fullWidth iconRight="arrow-right" onClick={v.pinDirections}>
+            <Button size="md" fullWidth iconRight="arrow-right" onClick={v.pinDirections} style={{ whiteSpace: "nowrap", paddingInline: 12 }}>
               Routes here
             </Button>
-            <Button variant="secondary" size="md" fullWidth onClick={v.pinSearch}>
+            <Button variant="secondary" size="md" fullWidth onClick={v.pinSearch} style={{ whiteSpace: "nowrap", paddingInline: 12 }}>
               Search area
             </Button>
           </div>

@@ -93,8 +93,17 @@ export function AccountScreen({ v }) {
             <span><Icon name="hard-drive" size={18} /></span>
             <div><h3>Stored in this browser</h3><p>Places, preferences, watched commutes and recent destinations.</p></div>
           </div>
-          <p className="sv-account-local-note"><Icon name="shield-check" size={15} />Nothing here is connected to a remote database or tied to an identity.</p>
-          <p className="sv-account-local-note"><Icon name="smartphone" size={15} />The data stays on this browser and does not follow you to another device.</p>
+          {isUser ? (
+            <>
+              <p className="sv-account-local-note"><Icon name="cloud" size={15} />Your preferences and saved places also sync to your account, so they follow you when you sign in elsewhere.</p>
+              <p className="sv-account-local-note"><Icon name="smartphone" size={15} />Watched commutes, journey memory, reports and saved routes stay on this browser only.</p>
+            </>
+          ) : (
+            <>
+              <p className="sv-account-local-note"><Icon name="shield-check" size={15} />Nothing here is connected to a remote database or tied to an identity.</p>
+              <p className="sv-account-local-note"><Icon name="smartphone" size={15} />The data stays on this browser and does not follow you to another device.</p>
+            </>
+          )}
         </section>
       </div>
 

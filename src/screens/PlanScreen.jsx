@@ -601,12 +601,7 @@ export function AddCommuteSheet({ v }) {
             </div>
             <div className="sv-scroll-stack" style={{ flex: 1, minHeight: 0, overflowY: "auto", display: "flex", flexDirection: "column", gap: 16, paddingBottom: 6 }}>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <SectionLabel>From</SectionLabel>
-                  <div style={{ marginLeft: "auto", flex: "none" }}>
-                    <IconButton icon="search" label="Search another place" tone="ghost" size="sm" onClick={v.addSearchFrom} />
-                  </div>
-                </div>
+                <SectionLabel>From</SectionLabel>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 7 }}>
                   {v.addFromOpts.map((p, i) => (
                     <button key={i} onClick={p.pick} style={styleText(p.style)}>
@@ -617,12 +612,7 @@ export function AddCommuteSheet({ v }) {
                 </div>
               </div>
               <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <SectionLabel>To</SectionLabel>
-                  <div style={{ marginLeft: "auto", flex: "none" }}>
-                    <IconButton icon="search" label="Search another place" tone="ghost" size="sm" onClick={v.addSearchTo} />
-                  </div>
-                </div>
+                <SectionLabel>To</SectionLabel>
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 7, marginTop: 7 }}>
                   {v.addToOpts.map((p, i) => (
                     <button key={i} onClick={p.pick} style={styleText(p.style)}>

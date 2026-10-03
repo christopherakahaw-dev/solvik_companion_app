@@ -309,7 +309,10 @@ test("tablet and laptop keep the map full-screen and reveal panels on demand", a
   await expect(routeSheet.getByRole("button", { name: "Hide steps" })).toBeVisible();
   const expandedRouteBox = await routeSheet.boundingBox();
   expect(expandedRouteBox.width).toBeLessThanOrEqual(421);
-  expect(expandedRouteBox.x).toBeGreaterThanOrEqual(page.viewportSize().width - 440);
+  // A right-hand panel, inset 72px so the alerts and weather buttons keep
+  // their own column beside it.
+  expect(expandedRouteBox.x).toBeGreaterThanOrEqual(page.viewportSize().width - 500);
+  expect(expandedRouteBox.x + expandedRouteBox.width).toBeLessThanOrEqual(page.viewportSize().width - 60);
   await expect(routeSheet.locator(".sv-route-mode-primary > button")).toHaveCount(6);
   for (const mode of ["Bus", "Train", "Transit", "Walk", "Cycle", "Express"]) {
     await expect(routeSheet.getByRole("button", { name: mode, exact: true })).toBeVisible();

@@ -7,6 +7,7 @@ import { getNearestStop } from "../api/stop";
 import { getNearbyBusStops } from "../api/nearbyStops";
 import { getArrivals } from "../api/arrivals";
 import { getStopArrivals } from "../api/stopArrivals";
+import { getPlaceAt } from "../api/placeAt";
 import { stopArrivalsSummary, stopArrivalsView } from "../lib/stopArrivals";
 import { arrivalKeys, detailRows } from "../lib/tripDetail";
 import { commuteOutlook, outlookCodes } from "../lib/outlook";
@@ -30,7 +31,7 @@ import { getPosition, watchPosition, clearWatch, messageForError, getLastPositio
 import { acceptFix, alongMAtTime, coordAt, stepAtTime, timeAtAlongM, STALE_FIX_MS } from "../lib/navProgress";
 import { metresBetween, bearingBetween } from "../lib/geometry";
 import { subscribeHeading } from "../lib/compass";
-import { affectedDirection, describeAffectedSegment } from "../lib/stationNames";
+import { affectedDirection, describeAffectedSegment, stationName as directoryStationName } from "../lib/stationNames";
 import { looksOffline, rememberRoutes, savedRouteKey, savedRoutesFor } from "../lib/savedRoutes";
 import { THEME_CHOICES, applyTheme, followSystemTheme, setTheme, storedTheme } from "../lib/theme";
 import { resolveRouteOrigin } from "../lib/routeOrigin";
@@ -50,6 +51,13 @@ const ONBOARDED_KEY = KEYS.onboarded;
 // flag as false, which is how the two are told apart. Such a commuter is
 // already a guest with everything on the device; greeting them with "Welcome
 // back, sign in" put a wall in front of their own data.
+// A stop's name for headings, never "undefined": LTA's code when it has no
+// description, and nothing at all for an answer with neither.
+function stopLabelOf(stop) {
+  if (!stop) return "";
+  return stop.name || (stop.code ? `Stop ${stop.code}` : "");
+}
+
 function predatesAccounts() {
   return !loadStored(KEYS.authUser, null)
     && loadStored(KEYS.isGuest, null) === null
@@ -432,7 +440,8 @@ export class AppLogic extends Component {
       authError: null,
       screen: nextScreen,
     });
-    this.flash("Browsing as guest");
+    // No "Browsing as guest" toast: the screen changing says so, and on the
+    // onboarding screen the toast sat on top of its only button.
   };
 
   authLogout = async () => {
@@ -1533,7 +1542,7 @@ export class AppLogic extends Component {
 
     const nowMins = new Date().getHours() * 60 + new Date().getMinutes();
     const inMins = view ? view.departIn : (next.mins - nowMins + 1440) % 1440;
-    const inLabel = inMins < 60 ? `leave in ${Math.max(0, inMins)} min` : `leave in ${Math.floor(inMins / 60)} h ${inMins % 60} min`;
+    const inLabel = inMins < 60 ? `Leave in ${Math.max(0, inMins)} min` : `Leave in ${Math.floor(inMins / 60)} h ${inMins % 60} min`;
 
     // Any service alert already loaded that names a line this journey uses.
     const legLabels = itinerary ? itinerary.legs || [] : [];
@@ -1556,10 +1565,11 @@ export class AppLogic extends Component {
     // reason to treat a lift outage as blocking.
     const stepFree = next.mode === "Step-free" || personaOf((s.routingPreferences || {}).persona).liftOutageBlocks;
     // What LTA has already activated for this disruption. Station codes are
-    // resolved to names through the crowd feed, which carries both.
+    // resolved to names through the crowd feed, which carries both, then the
+    // station directory for the many stations the feed doesn't list.
     const stationName = (code) => {
       const hit = ((s.crowd && s.crowd.stations) || []).find((st) => String(st.code).toUpperCase() === String(code).toUpperCase());
-      return (hit && hit.name) || code;
+      return (hit && hit.name) || directoryStationName(code);
     };
     const mitigations = mitigationsFor(alerts, stationName);
 
@@ -1738,11 +1748,13 @@ export class AppLogic extends Component {
       // ranked differently, and the card says that is why.
       wxHas: !!wxEffective,
       wxWet,
-      wxTitle: wxEffective ? (wxWet ? `${wxEffective.text} when you arrive` : wxEffective.text) : "",
+      // Always says where: a bare "Cloudy" above "Thundery Showers at Clementi
+      // right now" read as the card contradicting itself.
+      wxTitle: wxEffective ? `${wxEffective.text} when you arrive` : "",
       wxDetail: wxEffective ? weatherLine({ forecast: wxEffective, walkSecs: (itinerary && itinerary.walkSecs) || 0 }) : "",
       wxNote: [
         wxNow && isWet(wxNow.condition) ? `${wxNow.text} at ${wxNow.name} right now.` : "",
-        wxDestNow ? "From NEA's 2-hour localized nowcast." : wxForecast ? "From NEA's 24-hour forecast, published in multi-hour periods." : "",
+        wxDestNow ? "From NEA's 2‑hour localized nowcast." : wxForecast ? "From NEA's 24‑hour forecast, published in multi-hour periods." : "",
       ].filter(Boolean).join(" "),
 
       // What LTA has activated. Shown above our own alternative because it is
@@ -1952,9 +1964,10 @@ export class AppLogic extends Component {
         ? "Gemini is updating your travel preferences…"
         : s.aiMemory?.model
           ? `AI-assisted · ${s.aiMemory.confidence || "low"} confidence`
-          : s.aiMemoryStatus === "unconfigured"
-            ? "Add GEMINI_API_KEY to enable AI-assisted memory"
-            : "",
+          // Unconfigured says nothing: the built-in rules work on their own, and
+          // an environment variable name is a note for whoever deploys, not
+          // something a commuter can act on.
+          : "",
       memoryLines: [...new Set((s.journeys || []).flatMap((j) => j.legs || []))].slice(0, 8),
       // The places it has noticed, with what it knows about each. Listed rather
       // than counted, because "3 places remembered" is not something you can
@@ -2236,7 +2249,8 @@ export class AppLogic extends Component {
         ? { fcAlerts: false }
         : { fcAlerts: true, fcAlertTab: "personal" }),
       fcBellStyle: "position:relative;flex:none;margin-left:auto;width:46px;height:46px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;color:" +
-        (s.fcAlerts ? "#fff" : "var(--text-strong)") + ";background:" + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)") + ";box-shadow:0 4px 14px rgba(32,30,29,.18)",
+        // Inverted while open: page colour on text colour, so it reads in both themes.
+        (s.fcAlerts ? "var(--surface-page)" : "var(--text-strong)") + ";background:" + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)") + ";box-shadow:0 4px 14px rgba(32,30,29,.18)",
       fcBellDotStyle: "position:absolute;top:5px;right:5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:var(--weight-heavy) 10.5px/1 var(--font-numeric);color:#fff;background:var(--status-fault);border:2px solid " + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)"),
       fcFaultCountStyle: "font:var(--weight-bold) 11px/1 var(--font-body);padding:4px 9px;border-radius:999px;color:var(--status-fault);background:color-mix(in oklch, var(--status-fault) 12%, transparent)",
     };
@@ -3480,7 +3494,9 @@ export class AppLogic extends Component {
       navProgressStyle: { width: Math.round(navFrac * 100) + "%", height: "100%", background: "var(--accent)", borderRadius: 999, transition: "width 1s linear" },
       setStepsRef: (el) => { this.stepsEl = el; },
       stepsPagerStyle: {
-        flex: "1 1 auto", width: "100%", minWidth: 0, maxWidth: "100%", minHeight: 0, display: (s.navSheetH ?? NAV_COMPACT_H) < NAV_STEPS_MIN_H ? "none" : "flex", alignItems: "stretch", gap: 10, overflowX: "auto", overflowY: "hidden",
+        // Cards size to their content (a walk is two lines) instead of being
+        // stretched into a tall empty panel; long ones scroll within maxHeight.
+        flex: "1 1 auto", width: "100%", minWidth: 0, maxWidth: "100%", minHeight: 0, display: (s.navSheetH ?? NAV_COMPACT_H) < NAV_STEPS_MIN_H ? "none" : "flex", alignItems: "flex-start", gap: 10, overflowX: "auto", overflowY: "hidden",
         scrollSnapType: s.stepsDrag ? "none" : "x mandatory", scrollbarWidth: "none",
         cursor: s.stepsDrag ? "grabbing" : "grab", userSelect: "none", touchAction: "auto",
       },
@@ -3539,7 +3555,7 @@ export class AppLogic extends Component {
           laneStyle: { position: "absolute", left: 11, top: ROW / 2, height: span, width: 4, background: "var(--sand-200)", borderRadius: 999 },
           laneFillStyle: { position: "absolute", left: 11, top: ROW / 2, height: Math.round(span * prog), width: 4, background: "var(--accent)", borderRadius: 999, transition: "height 1s linear" },
           state: done ? "Done" : cur ? "Now" : "Next",
-          cardStyle: { flex: "0 0 100%", minWidth: 0, boxSizing: "border-box", scrollSnapAlign: "start", background: cur ? "var(--accent-soft)" : "var(--surface-card)", border: "1px solid " + (cur ? "transparent" : "var(--border-card)"), borderRadius: "var(--radius-card)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", overscrollBehaviorY: "contain", opacity: done ? 0.62 : 1 },
+          cardStyle: { flex: "0 0 100%", minWidth: 0, maxHeight: "100%", boxSizing: "border-box", scrollSnapAlign: "start", background: cur ? "var(--accent-soft)" : "var(--surface-card)", border: "1px solid " + (cur ? "transparent" : "var(--border-card)"), borderRadius: "var(--radius-card)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", overscrollBehaviorY: "contain", opacity: done ? 0.62 : 1 },
           iconWrapStyle: { flex: "none", width: 30, height: 30, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: cur ? "var(--accent)" : "var(--sand-100)", color: cur ? "var(--text-on-accent)" : "var(--text-body)" },
           chipStyle: { font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: cur ? "var(--text-accent)" : "var(--text-muted)", background: cur ? "var(--surface-card)" : "var(--sand-100)", borderRadius: 999, padding: "5px 9px" },
           titleStyle: { font: "var(--weight-heavy) var(--size-body)/1.3 var(--font-body)", color: "var(--text-strong)", textWrap: "pretty" },
@@ -3623,7 +3639,7 @@ export class AppLogic extends Component {
         ? "Reading Singapore’s latest NEA forecast."
         : weatherState.error
           ? "The live NEA forecast could not be reached. Try again in a moment."
-          : `${weatherArea} · ${currentNowcast ? "NEA 2-hour forecast" : "NEA 24-hour forecast"}`,
+          : `${weatherArea} · ${currentNowcast ? "NEA 2‑hour forecast" : "NEA 24‑hour forecast"}`,
       meta: weatherValidTo ? `Valid until ${singaporeClock(weatherValidTo)}` : "Live Singapore forecast from NEA",
       wet: isWet(currentNowcast?.condition || currentOutlook?.condition),
       ariaLabel: weatherState.pending ? "Checking Singapore weather" : weatherState.error ? "Singapore weather unavailable" : `Singapore weather: ${weatherText || "forecast unavailable"}`,
@@ -3877,10 +3893,21 @@ export class AppLogic extends Component {
           this.setState({ searchOpen: false });
           return;
         }
+        const coords = ll[0].toFixed(5) + ", " + ll[1].toFixed(5);
         this.setState({
-          pin: { ll, name: "Dropped pin", detail: ll[0].toFixed(5) + ", " + ll[1].toFixed(5) },
+          pin: { ll, name: "Dropped pin", detail: "Finding the nearest address…" },
           searchOpen: false,
         });
+        // Coordinates mean little to a commuter; the nearest building does.
+        // "Near", because the pin can sit up to 60 m from it. Coordinates stay
+        // the fallback when nothing is close or OneMap can't be reached.
+        getPlaceAt(ll)
+          .then((place) => place ? `Near ${place.name}` : coords)
+          .catch(() => coords)
+          .then((detail) => {
+            if (this.state.pin?.ll !== ll) return;
+            this.setState((st) => ({ pin: { ...st.pin, detail } }));
+          });
       },
       clearPin: () => this.setState({ pin: null }),
       pinDirections: () => {
@@ -3921,7 +3948,7 @@ export class AppLogic extends Component {
         : s.aiRoute?.decision
           ? `AI-assisted recommendation · ${s.aiRoute.model || "Gemini"}`
           : s.aiRoute?.configured === false
-            ? "Smart local ranking active · add GEMINI_API_KEY for Gemini assistance"
+            ? ""
             : s.aiRoute?.error
               ? "Gemini unavailable · using smart local ranking"
               : "",
@@ -4006,7 +4033,7 @@ export class AppLogic extends Component {
       headerTitle: { map: "Map", report: "Report", rewards: "Points", plan: "Today", account: "Your data" }[sc] || "Solvik",
       headerSub: {
         map: "OneMap · Singapore Land Authority",
-        report: s.stop.data ? `${s.stop.data.name} · reports stay live 30 min` : "Reports stay live 30 min",
+        report: stopLabelOf(s.stop.data) ? `${stopLabelOf(s.stop.data)} · reports stay live 30 min` : "Reports stay live 30 min",
         rewards: "Sample rewards data",
         plan: (() => {
           const n = (s.savedList || []).length;
@@ -4109,9 +4136,10 @@ export class AppLogic extends Component {
       navRepCta: s.reportBusy ? "Checking…" : !s.navPhoto ? "Take a photo to save" : "Save locally · " + (rTypes.find((t) => t.id === s.nrType) || { pts: 0 }).pts + " points",
       navRepPost: () => this.submitNavReport(),
       locEyebrow: s.stop.data ? "Live at your stop" : s.stop.requested ? (s.stop.error ? "No stop found" : "Finding your stop") : "Location is off",
-      locStopName: s.stop.data ? s.stop.data.name : s.stop.error ? "Location unavailable" : s.stop.pending ? "Locating…" : "Use your location",
-      locDetail: s.stop.data
-        ? `Stop ${s.stop.data.code} · ${Math.round(s.stop.data.distanceM)} m away · reports stay live 30 min`
+      locStopName: stopLabelOf(s.stop.data) || (s.stop.error ? "Location unavailable" : s.stop.pending ? "Locating…" : "Use your location"),
+      locHasStop: Boolean(stopLabelOf(s.stop.data)),
+      locDetail: s.stop.data?.code
+        ? `Stop ${s.stop.data.code}${Number.isFinite(s.stop.data.distanceM) ? ` · ${Math.round(s.stop.data.distanceM)} m away` : ""} · reports stay live 30 min`
         : s.stop.error || (s.stop.requested ? "Using your location to pick the stop you can report on." : "Solvik will ask for a one-time location fix to find the nearest stop."),
       locRecheckLabel: s.stop.pending ? "Locating" : s.stop.requested ? "Recheck" : "Use location",
       locRecheck: () => this.findNearestStop(),

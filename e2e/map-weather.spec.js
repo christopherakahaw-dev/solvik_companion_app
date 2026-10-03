@@ -35,7 +35,7 @@ test("the map weather button reflects Singapore conditions and opens a compact s
   const weatherPanel = page.getByRole("region", { name: "Singapore weather" });
   await expect(weatherPanel).toBeVisible();
   await expect(weatherPanel.getByText("Heavy Thundery Showers", { exact: true })).toBeVisible();
-  await expect(weatherPanel.getByText(/City · NEA 2-hour forecast/)).toBeVisible();
+  await expect(weatherPanel.getByText(/City · NEA 2.hour forecast/)).toBeVisible();
   expect(await weatherPanel.locator(".sv-map-weather-hero").evaluate((element) => getComputedStyle(element).backgroundColor)).not.toBe("rgb(255, 255, 255)");
   const box = await weatherPanel.boundingBox();
   expect(box.x).toBeGreaterThanOrEqual(0);

@@ -78,7 +78,7 @@ export function ReportScreen({ v }) {
           </Button>
           <Card tone="plain">
             <div style={{ font: "var(--type-heading)", letterSpacing: "var(--tracking-heading)", color: "var(--text-strong)" }}>{v.chosenLabel}</div>
-            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 6 }}>{v.locStopName} · stays live 30 min</div>
+            <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 6 }}>{v.locHasStop ? `${v.locStopName} · stays live 30 min` : "Stays live for 30 min once saved"}</div>
             <div style={{ height: 14 }} />
             <SectionLabel>{v.severityQ}</SectionLabel>
             <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 10 }}>
