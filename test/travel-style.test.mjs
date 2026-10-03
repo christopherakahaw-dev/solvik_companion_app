@@ -10,7 +10,7 @@ test('PERSONAS have been updated to the requested travel style names', () => {
 });
 
 test('PERSONAS blurbs, route labels and schedules match user requirements', () => {
-  assert.equal(PERSONAS.fixed.blurb, 'Same trip everyday. Notify me when my route gets disrupted.');
+  assert.equal(PERSONAS.fixed.blurb, 'Same trip every day. Notify me when my route gets disrupted.');
   assert.equal(PERSONAS.fixed.route.label, '');
   assert.equal(PERSONAS.fixed.route.schedule, 'Defaults the fastest routes available');
   assert.equal(PERSONAS.fixed.fit, '');
