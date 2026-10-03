@@ -843,6 +843,12 @@
     will-change: transform;
   }
   .sv-route-sheet-wrap[data-dragging] { transition: none; }
+  /* The grab bar: a 4px pill to look at, a 44px-tall target to hit, and a
+     slider to the keyboard and screen readers. */
+  .sv-sheet-grip { display: flex; align-items: center; justify-content: center; height: 44px; margin: -14px auto -14px; width: 120px; border-radius: 12px; cursor: grab; outline: none; }
+  .sv-sheet-grip > span { width: 42px; height: 4px; border-radius: 999px; background: var(--border-strong); transition: width 160ms ease, background 160ms ease; }
+  .sv-sheet-grip:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+  .sv-route-sheet-wrap[data-dragging] .sv-sheet-grip > span { width: 52px; background: var(--text-muted); }
   .sv-route-sheet-wrap .sv-route-sheet { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0 !important; overscroll-behavior: contain; }
   .sv-map-screen.is-route-expanded .sv-map-action-weather,
   .sv-map-screen.is-route-expanded .sv-map-weather-popover { display: none; }
