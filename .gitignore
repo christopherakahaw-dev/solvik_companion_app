@@ -32,3 +32,6 @@ supabase/.temp/
 
 # Recordings from `npm run capture` — regenerate, don't commit.
 demo-capture/
+
+# Local development account database (SQLite). Never commit: it holds password hashes.
+.data/
