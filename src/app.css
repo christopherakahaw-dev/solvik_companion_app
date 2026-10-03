@@ -535,7 +535,7 @@
   .sv-route-sheet-wrap { display: none !important; }
   /* right: 72px leaves the alerts and weather buttons (14–58px from the edge)
      their own column instead of sitting on the panel's controls. */
-  .sv-route-sheet-wrap.is-open { top: auto !important; right: 72px !important; bottom: 16px !important; left: auto !important; width: min(380px, calc(100% - 88px)) !important; max-height: calc(100% - 16px) !important; display: flex !important; z-index: 42 !important; animation: sv-card-reveal 320ms cubic-bezier(.16,1,.3,1) both; }
+  .sv-route-sheet-wrap.is-open { top: auto !important; right: 72px !important; bottom: 16px !important; left: auto !important; width: min(380px, calc(100% - 88px)) !important; height: var(--sheet-visible, 430px); max-height: calc(100% - 16px) !important; display: flex !important; z-index: 42 !important; animation: sv-card-reveal 320ms cubic-bezier(.16,1,.3,1) both; }
   .sv-route-sheet { position: relative; border-radius: 24px !important; overflow: hidden; }
   .sv-route-sheet-toolbar { min-height: 40px; box-sizing: border-box; padding: 12px 42px 10px !important; }
   .sv-route-panel-close { position: absolute; top: 7px; right: 0; z-index: 3; width: 36px; height: 36px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 0; border-radius: 50%; cursor: pointer; color: var(--text-muted); background: var(--sand-100); }
@@ -827,11 +827,23 @@
 /* Phones use a tall bottom sheet. Wider screens retain a side card so route
    details never hide the map the user is comparing them against. */
 @media (max-width: 599px) {
-  /* Below the back and alerts buttons (they end ~60px down), so neither sits
-     on top of the sheet's own content; the weather button below them steps
-     aside while the sheet is expanded. */
-  .sv-route-sheet-wrap.is-expanded { inset: 70px 0 0 !important; width: 100% !important; height: calc(100% - 70px) !important; max-height: calc(100% - 70px) !important; }
-  .sv-route-sheet-wrap.is-expanded .sv-route-sheet { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0 !important; }
+  /* The sheet is always full height (below the back and alerts buttons, which
+     end ~60px down — ROUTE_SHEET_TOP in appLogic) and slid down so only
+     --sheet-visible shows. Moving it is a transform, which the GPU does on its
+     own: dragging never re-lays out the route cards. The easing settles like a
+     native sheet. While a finger is down there is no transition, so it tracks
+     the finger exactly. */
+  .sv-route-sheet-wrap {
+    top: 70px !important;
+    bottom: 0 !important;
+    height: auto !important;
+    max-height: none !important;
+    transform: translate3d(0, calc(100% - var(--sheet-visible, 50%)), 0);
+    transition: transform 380ms cubic-bezier(.22, .9, .24, 1);
+    will-change: transform;
+  }
+  .sv-route-sheet-wrap[data-dragging] { transition: none; }
+  .sv-route-sheet-wrap .sv-route-sheet { border-radius: var(--radius-sheet) var(--radius-sheet) 0 0 !important; overscroll-behavior: contain; }
   .sv-map-screen.is-route-expanded .sv-map-action-weather,
   .sv-map-screen.is-route-expanded .sv-map-weather-popover { display: none; }
 }

@@ -7,6 +7,7 @@ import { SolvikBrand } from "../components/SolvikBrand";
 import { AnimatedWeatherIcon } from "../components/AnimatedWeatherIcon";
 import { journeyDuration, arrivalClockLabel } from "../lib/display";
 import { styleText } from "../lib/styleText";
+import { attachSheetGesture } from "../lib/sheetGesture";
 
 // Numbers at headline size, units small: "2 h 34 min" fits a 320 px card that
 // clipped it to "2 h 34 mir" when every letter was 32 px.
@@ -23,36 +24,43 @@ function DurationText({ mins }) {
 export function MapScreen({ v }) {
   const routeScrollRef = useRef(null);
   const routeCardRef = useRef(null);
+  const routeWrapRef = useRef(null);
+  const routeHandleRef = useRef(null);
+  // The gesture reads the latest view values without re-attaching each render.
+  const viewRef = useRef(v);
+  viewRef.current = v;
+
+  // Not yet fully open, a wheel or trackpad scroll over the sheet opens it
+  // rather than scrolling a list that is mostly off screen.
   useEffect(() => {
     const el = routeCardRef.current;
     if (!el || v.routeSheetExpanded) return;
     if (routeScrollRef.current) routeScrollRef.current.scrollTop = 0;
-    let touch = null;
     const wheel = (event) => {
       if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
       event.preventDefault();
-      if (event.deltaY !== 0) v.expandRouteSheet();
-    };
-    const start = (event) => { touch = event.touches[0] ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null; };
-    const move = (event) => {
-      if (!touch || !event.touches[0]) return;
-      const dx = event.touches[0].clientX - touch.x;
-      const dy = event.touches[0].clientY - touch.y;
-      if (Math.abs(dy) > 12 && Math.abs(dy) > Math.abs(dx)) {
-        event.preventDefault();
-        v.expandRouteSheet();
-        touch = null;
-      }
+      if (event.deltaY !== 0) viewRef.current.expandRouteSheet();
     };
     el.addEventListener("wheel", wheel, { passive: false, capture: true });
-    el.addEventListener("touchstart", start, { passive: true, capture: true });
-    el.addEventListener("touchmove", move, { passive: false, capture: true });
-    return () => {
-      el.removeEventListener("wheel", wheel, true);
-      el.removeEventListener("touchstart", start, true);
-      el.removeEventListener("touchmove", move, true);
-    };
-  }, [v.mapRoute, v.routeSheetExpanded, v.expandRouteSheet]);
+    return () => el.removeEventListener("wheel", wheel, true);
+  }, [v.mapRoute, v.routeSheetExpanded]);
+
+  // Phones: the sheet follows the finger and snaps (src/lib/sheetGesture.js).
+  // Wider screens show a side card, which doesn't drag.
+  useEffect(() => {
+    const wrap = routeWrapRef.current;
+    if (!wrap) return undefined;
+    const narrow = window.matchMedia("(max-width: 599px)");
+    return attachSheetGesture({
+      wrap,
+      handle: routeHandleRef.current,
+      scroller: routeScrollRef.current,
+      enabled: () => narrow.matches,
+      getSnaps: () => viewRef.current.routeSheetSnaps(),
+      getHeight: () => viewRef.current.routeSheetHeight,
+      onSettle: (height) => viewRef.current.settleRouteSheet(height),
+    });
+  }, [v.mapRoute]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [openRouteFor, setOpenRouteFor] = useState(null);
@@ -394,9 +402,9 @@ export function MapScreen({ v }) {
       )}
 
       {v.mapRoute && (
-        <div ref={v.setSheetRef} data-covers-map className={`sv-route-sheet-wrap${routePanelOpen ? " is-open" : ""}${v.routeSheetExpanded ? " is-expanded" : ""}`} style={v.sheetWrapStyle}>
+        <div ref={(el) => { routeWrapRef.current = el; v.setSheetRef(el); }} data-covers-map className={`sv-route-sheet-wrap${routePanelOpen ? " is-open" : ""}${v.routeSheetExpanded ? " is-expanded" : ""}`} style={v.sheetWrapStyle}>
           <section ref={routeCardRef} className="sv-route-sheet" style={v.sheetStyle} aria-label="Route options">
-            <div className="sv-route-sheet-toolbar" onPointerDown={v.sheetDragStart} style={v.sheetGrabStyle}>
+            <div ref={routeHandleRef} className="sv-route-sheet-toolbar" style={v.sheetGrabStyle}>
               <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)", margin: "0 auto" }} />
               <button type="button" className="sv-route-panel-close" aria-label="Collapse route options" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setOpenRouteFor(null); setDismissedRouteFor(v.destName); }}>
                 <Icon name="x" size={18} />

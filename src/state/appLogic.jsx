@@ -74,6 +74,9 @@ const ORIGIN_FALLBACK = [1.3521, 103.8198];
 const REPLAN_DRIFT_M = 150;
 const MAP_FOLLOW_M = 120;
 const NAV_COMPACT_H = 168;
+// The phone route sheet's full height stops this far from the top, below the
+// back and alerts buttons (they end ~60px down). Mirrored in app.css.
+const ROUTE_SHEET_TOP = 70;
 const NAV_STEPS_MIN_H = 220;
 // The compact sheet leaves the map almost entirely open. When the commuter
 // asks for steps, give station-heavy legs enough vertical room to be useful
@@ -147,7 +150,7 @@ export class AppLogic extends Component {
     addEdit: null, placesOpen: false,
     addOpen: false, addFrom: "home", addTo: "work", addDays: ["Mon", "Tue", "Wed", "Thu", "Fri"],
     addMode: "Comfort", addMins: 462, addWhen: "leave", fcSlot: 0, fcPin: null, fcAlerts: false, fcAlertTab: "personal", fcWatch: [], crowdOn: false,
-    hoverTab: null, pressTab: null, sheetH: 430, sheetDrag: false, navRoute: null, navStart: null,
+    hoverTab: null, pressTab: null, sheetH: 430, navRoute: null, navStart: null,
     navPage: 0, stepsDrag: false, pin: null,
     theme: storedTheme(),
     canInstall: false,
@@ -3101,8 +3104,10 @@ export class AppLogic extends Component {
   level(v) { return v < 0.45 ? "light" : v < 0.75 ? "moderate" : "busy"; }
   barsFor(l) { return [{ style: { width: "11px", height: "11px", borderRadius: "999px", background: CROWD[l], display: "block" } }]; }
   bars(v) { return this.barsFor(this.level(v)); }
+  // Resting heights for the phone route sheet, Google Maps style: a peek with
+  // the summary, half the screen, and full height below the top buttons.
   snaps(H) {
-    return [Math.min(190, H * 0.3), Math.min(H * 0.5, H - 36), Math.max(150, H - 36)];
+    return [Math.min(190, H * 0.3), Math.min(H * 0.5, H - ROUTE_SHEET_TOP), Math.max(150, H - ROUTE_SHEET_TOP)];
   }
 
   // The tall snap point, for when there is a breakdown to read.
@@ -3181,30 +3186,11 @@ export class AppLogic extends Component {
     e.preventDefault();
   }
 
-  startSheetDrag(e) {
-    const el = this.sheetEl, host = el && el.parentElement;
-    if (!host) return;
-    e.preventDefault();
-    const H = host.getBoundingClientRect().height;
-    const snaps = this.snaps(H), startY = e.clientY, startH = Math.min(el.getBoundingClientRect().height, snaps[2]);
-    let moved = false, cur = startH;
-    this.setState({ sheetDrag: true });
-    const move = (ev) => {
-      const d = startY - ev.clientY;
-      if (Math.abs(d) > 4) moved = true;
-      cur = Math.max(150, Math.min(snaps[2], startH + d));
-      this.setState({ sheetH: cur });
-    };
-    const up = () => {
-      window.removeEventListener("pointermove", move);
-      window.removeEventListener("pointerup", up);
-      let target;
-      if (!moved) target = cur >= snaps[2] - 10 ? snaps[1] : snaps[2];
-      else target = snaps.reduce((a, b) => (Math.abs(b - cur) < Math.abs(a - cur) ? b : a), snaps[0]);
-      this.setState({ sheetH: target, sheetDrag: false });
-    };
-    window.addEventListener("pointermove", move);
-    window.addEventListener("pointerup", up);
+  // The snap heights for the sheet's current host, for the drag controller.
+  routeSheetSnaps() {
+    const host = this.sheetEl && this.sheetEl.parentElement;
+    const H = host ? host.getBoundingClientRect().height : (typeof window !== "undefined" ? window.innerHeight : 844);
+    return this.snaps(H);
   }
 
   renderVals() {
@@ -3922,11 +3908,18 @@ export class AppLogic extends Component {
       },
       setSheetRef: (el) => { this.sheetEl = el; },
       routeSheetExpanded: !!s.sheetH && s.sheetH >= this.tallSheet() - 1,
-      sheetWrapStyle: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 15, display: "flex", height: s.sheetH ? s.sheetH + "px" : "min(430px, 50%)", maxHeight: "100%", transition: s.sheetDrag ? "none" : "height var(--dur-base) var(--ease-out)" },
+      // --sheet-visible is how much of the sheet shows. On phones the sheet is
+      // full height and slid down by a transform (app.css), so dragging moves
+      // it on the GPU without re-laying out its contents; on desktop it is the
+      // side card's height. The drag controller in MapScreen writes the same
+      // variable straight to the element while a finger is down.
+      sheetWrapStyle: { position: "absolute", left: 0, right: 0, bottom: 0, zIndex: 15, display: "flex", maxHeight: "100%", "--sheet-visible": s.sheetH ? s.sheetH + "px" : "min(430px, 50%)" },
       sheetStyle: { flex: 1, minHeight: 0, width: "100%", minWidth: 0, maxWidth: "100%", boxSizing: "border-box", background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)", display: "flex", flexDirection: "column", padding: "0 16px" },
-      sheetGrabStyle: { flex: "none", padding: "10px 0 12px", cursor: s.sheetDrag ? "grabbing" : "grab", touchAction: "none", userSelect: "none" },
-      sheetDragStart: (e) => this.startSheetDrag(e),
-      expandRouteSheet: () => this.setState({ sheetH: this.tallSheet(), sheetDrag: false }),
+      sheetGrabStyle: { flex: "none", padding: "10px 0 12px", cursor: "grab", touchAction: "none", userSelect: "none" },
+      routeSheetSnaps: () => this.routeSheetSnaps(),
+      settleRouteSheet: (height) => this.setState({ sheetH: height }),
+      routeSheetHeight: s.sheetH,
+      expandRouteSheet: () => this.setState({ sheetH: this.tallSheet() }),
       tripModeTiles: [
         { id: "transit", label: "Transit", icon: "route" },
         { id: "walk", label: "Walk", icon: "footprints" },
