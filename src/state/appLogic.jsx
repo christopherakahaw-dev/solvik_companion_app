@@ -6,6 +6,8 @@ import { getCrowding } from "../api/crowding";
 import { getNearestStop } from "../api/stop";
 import { getNearbyBusStops } from "../api/nearbyStops";
 import { getArrivals } from "../api/arrivals";
+import { getStopArrivals } from "../api/stopArrivals";
+import { stopArrivalsSummary, stopArrivalsView } from "../lib/stopArrivals";
 import { arrivalKeys, detailRows } from "../lib/tripDetail";
 import { commuteOutlook, outlookCodes } from "../lib/outlook";
 import { worksLabel, worksDetail, mitigationsFor, roadWorksOnRoute, roadWorkLabel, roadWorkDetail, busChangesOnRoute, busChangeLabel, busChangeDetail } from "../lib/planned";
@@ -195,6 +197,8 @@ export class AppLogic extends Component {
     demoAlertActive: false,
     stop: { data: null, pending: false, error: null, requested: false },
     nearbyStops: { items: [], pending: false, error: null, requested: false },
+    // Every service due at each nearby stop, by stop code.
+    stopArrivals: { byCode: {}, pending: false, error: null, at: null, recorded: false },
   };
 
   // Called from componentDidMount below. This used to be a second
@@ -2249,6 +2253,14 @@ export class AppLogic extends Component {
     }
     if (this.state.query !== prevState.query) this.scheduleLiveSearch();
     if (this.state.addQuery !== prevState.addQuery) this.scheduleAddSearch();
+    // The nearby tray's stops arrived: start asking for their buses. The tray
+    // closed (by any of its several ways): stop asking, and forget the times.
+    const stopItems = this.state.nearbyStops?.items || [];
+    if (stopItems !== (prevState.nearbyStops?.items || []) && stopItems.length) this.startStopArrivalsPoll();
+    if (prevState.nearbyStops?.requested && !this.state.nearbyStops?.requested) {
+      this.stopStopArrivalsPoll();
+      this.setState({ stopArrivals: { byCode: {}, pending: false, error: null, at: null, recorded: false } });
+    }
 
     // Anything that changes what a journey looks like re-asks OneMap. Position
     // counts only once it has actually moved: with the watch running, every
@@ -2367,6 +2379,7 @@ export class AppLogic extends Component {
     if (this._leaveCancel) this._leaveCancel();
     this.stopTracking();
     this.stopArrivalsPoll();
+    this.stopStopArrivalsPoll();
     if (typeof document !== "undefined") document.removeEventListener("visibilitychange", this.handleVisibilityChange);
   }
 
@@ -2419,14 +2432,46 @@ export class AppLogic extends Component {
       this._arrivalsIv = null;
     }
   };
+  // Every bus due at the stops in the nearby tray, re-asked every 30 s while
+  // the tray is open so the minutes count down rather than freeze.
+  startStopArrivalsPoll = () => {
+    this.stopStopArrivalsPoll();
+    if (typeof document !== "undefined" && document.hidden) return;
+    const tick = () => {
+      if (typeof document !== "undefined" && document.hidden) return;
+      const codes = (this.state.nearbyStops?.items || []).map((stop) => stop.code).filter(Boolean);
+      if (!codes.length) return;
+      this.setState((st) => ({ stopArrivals: { ...st.stopArrivals, pending: true } }));
+      getStopArrivals(codes)
+        .then(({ stops, recorded }) => this.setState((st) => ({
+          stopArrivals: { byCode: { ...st.stopArrivals.byCode, ...stops }, pending: false, error: null, at: Date.now(), recorded },
+        })))
+        .catch((err) => this.setState((st) => ({
+          // Times already on screen stay, with their age; only a first load
+          // with nothing to show turns into an error.
+          stopArrivals: { ...st.stopArrivals, pending: false, error: String(err.message || err) },
+        })));
+    };
+    tick();
+    this._stopArrivalsIv = setInterval(tick, 30000);
+  };
+  stopStopArrivalsPoll = () => {
+    if (this._stopArrivalsIv) {
+      clearInterval(this._stopArrivalsIv);
+      this._stopArrivalsIv = null;
+    }
+  };
+
   handleVisibilityChange = () => {
     if (typeof document === "undefined") return;
     if (document.hidden) {
       this.stopArrivalsPoll();
+      this.stopStopArrivalsPoll();
       return;
     }
     const { dest, trips } = this.state;
     if (dest && trips.options.length) this.startArrivalsPoll();
+    if (this.state.nearbyStops?.items?.length) this.startStopArrivalsPoll();
   };
 
   stopTracking = () => {
@@ -3246,9 +3291,11 @@ export class AppLogic extends Component {
         : this.chooseDest(p, s.searchTarget === "area" ? { pin: null } : undefined),
     }));
     const nearbyBusState = s.nearbyStops || { items: [], pending: false, error: null, requested: false };
+    const stopArrivalsState = s.stopArrivals || { byCode: {} };
     const nearbyBusStops = (nearbyBusState.items || []).map((stop) => ({
       ...stop,
       detail: `${stop.road || "Bus stop"} · ${nearbyDistance(stop.distanceM)}`,
+      arrivals: stopArrivalsView(stopArrivalsState.byCode?.[stop.code], { pending: stopArrivalsState.pending, error: stopArrivalsState.error }),
       pick: () => this.chooseDest({
         name: stop.name || `Bus stop ${stop.code}`,
         detail: `${stop.road || "Bus stop"} · Stop ${stop.code}`,
@@ -3622,7 +3669,14 @@ export class AppLogic extends Component {
         road: stop.road,
         ll: [stop.lat, stop.lng],
         distanceM: stop.distanceM,
+        arrivalsLine: stopArrivalsSummary(stop.arrivals),
       })) : [],
+      stopArrivalsNote: (() => {
+        const sa = s.stopArrivals || {};
+        if (sa.recorded) return "Recorded bus times — LTA's live feed didn't answer";
+        if (!sa.at) return "";
+        return `Live from LTA DataMall · updated ${singaporeClock(sa.at)}${sa.error ? " · couldn't refresh, showing the last times" : ""} · ~ means scheduled, not tracked`;
+      })(),
       findNearbyBusStops: this.findNearbyBusStops,
       closeNearbyBusStops: () => {
         this._nearbyStopsRequest = null;
