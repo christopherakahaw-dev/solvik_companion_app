@@ -33,6 +33,9 @@ test("the same lift outage reads differently for each commuter", async ({ page }
   await withCommute(page);
   await expect(page.getByText("Lift out at Bishan")).toBeVisible();
 
+  // The persona choice is folded to one row on Today.
+  await page.getByRole("button", { name: /^Tailored for you/ }).click();
+
   // Fixed schedule: a note. The trains still run.
   await page.getByRole("button", { name: /^Fixed schedule/i }).click();
   await expect(page.getByText(/trains still run — only the lift is out/)).toBeVisible();
@@ -47,8 +50,11 @@ test("the same lift outage reads differently for each commuter", async ({ page }
 
 test("the chosen persona is named on screen and survives a reload", async ({ page }) => {
   await withCommute(page);
+  await page.getByRole("button", { name: /^Tailored for you/ }).click();
   await page.getByRole("button", { name: /^Flexible and multi-modal/i }).click();
   await page.reload();
   await page.getByRole("button", { name: "Plan", exact: true }).click();
+  await expect(page.getByRole("button", { name: /^Tailored for you/ })).toContainText(/Flexible and multi-modal/i);
+  await page.getByRole("button", { name: /^Tailored for you/ }).click();
   await expect(page.getByRole("button", { name: /^Flexible and multi-modal/i })).toHaveAttribute("aria-pressed", "true");
 });

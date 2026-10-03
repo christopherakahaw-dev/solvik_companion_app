@@ -61,6 +61,7 @@ test("demo data walkthrough", async ({ page }) => {
   await scrollThrough("seeded");
 
   await toTop();
+  await page.getByRole("button", { name: /^Tailored for you/ }).click();
   await page.getByRole("button", { name: /^Easy and Accessible/i }).click();
   await page.waitForTimeout(1600);
   await scrollThrough("stepfree-large-text");

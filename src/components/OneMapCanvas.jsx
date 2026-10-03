@@ -298,10 +298,35 @@ export function OneMapCanvas({
       layersRef.current.push(was);
     }
     if (safeRoute.length > 1) {
-      routeSegments(routeOption, safeRoute).forEach(({ points, color, walking }) => {
+      const segments = routeSegments(routeOption, safeRoute);
+      segments.forEach(({ points, color, walking }) => {
         const outline = L.polyline(points, { color: "#ffffff", weight: walking ? 9 : 12, opacity: 0.95, dashArray: walking ? "1 13" : null, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
         const line = L.polyline(points, { color, weight: walking ? 6 : 8, opacity: 1, dashArray: walking ? "1 13" : null, lineCap: "round", lineJoin: "round", interactive: false }).addTo(map);
         layersRef.current.push(outline, line);
+      });
+
+      // Where each bus or train is boarded and left: a white stop ringed in
+      // its line's colour, as on the network map. Where one ride hands over to
+      // the next it is drawn larger — the interchange is the part of a trip
+      // people get wrong. Tap one for its name.
+      const rides = segments.filter((segment) => !segment.walking && segment.points.length > 1);
+      rides.forEach((ride, k) => {
+        const ends = [
+          { ll: ride.points[0], name: ride.board, verb: "Board", transfer: k > 0 },
+          { ll: ride.points[ride.points.length - 1], name: ride.alight, verb: "Get off", transfer: k < rides.length - 1 },
+        ];
+        ends.forEach(({ ll, name, verb, transfer }) => {
+          const stop = L.circleMarker(ll, {
+            radius: transfer ? 7 : 5.5,
+            color: ride.color,
+            weight: transfer ? 4 : 3,
+            fillColor: "#ffffff",
+            fillOpacity: 1,
+            className: transfer ? "sv-route-stop is-transfer" : "sv-route-stop",
+          }).addTo(map);
+          if (name) stop.bindTooltip(`${verb} ${escapeHtml(ride.label)} · ${escapeHtml(name)}`, { direction: "top", offset: [0, -6], className: "sv-route-stop-tip" });
+          layersRef.current.push(stop);
+        });
       });
 
       // The affected stretch, drawn over the route in the disruption colour.
