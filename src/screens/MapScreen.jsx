@@ -7,7 +7,20 @@ import { SolvikBrand } from "../components/SolvikBrand";
 import { AnimatedWeatherIcon } from "../components/AnimatedWeatherIcon";
 import { journeyDuration, arrivalClockLabel } from "../lib/display";
 import { styleText } from "../lib/styleText";
-import { attachSheetGesture } from "../lib/sheetGesture";
+import { attachSheetGesture, fitSnaps } from "../lib/sheetGesture";
+
+// True on phone-width screens, kept current as the window is resized.
+function useNarrowScreen() {
+  const query = "(max-width: 599px)";
+  const [narrow, setNarrow] = useState(() => typeof window !== "undefined" && window.matchMedia(query).matches);
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const onChange = () => setNarrow(media.matches);
+    media.addEventListener("change", onChange);
+    return () => media.removeEventListener("change", onChange);
+  }, []);
+  return narrow;
+}
 
 // Numbers at headline size, units small: "2 h 34 min" fits a 320 px card that
 // clipped it to "2 h 34 mir" when every letter was 32 px.
@@ -45,22 +58,67 @@ export function MapScreen({ v }) {
     return () => el.removeEventListener("wheel", wheel, true);
   }, [v.mapRoute, v.routeSheetExpanded]);
 
-  // Phones: the sheet follows the finger and snaps (src/lib/sheetGesture.js).
-  // Wider screens show a side card, which doesn't drag.
+  // Phones: the sheet follows the finger and springs to rest
+  // (src/lib/sheetGesture.js). Wider screens show a side card, which doesn't drag.
+  const narrow = useNarrowScreen();
+  const sheetControlRef = useRef(null);
+  // Resting heights fitted to the sheet's content: the peek just below the
+  // start and destination, the middle just below the best route's card.
+  const routeSnaps = () => {
+    const base = viewRef.current.routeSheetSnaps();
+    const wrap = routeWrapRef.current;
+    if (!wrap) return base;
+    const top = wrap.getBoundingClientRect().top;
+    const scroller = routeScrollRef.current;
+    const offset = (el, edge) => (el ? el.getBoundingClientRect()[edge] - top + (scroller && scroller.contains(el) ? scroller.scrollTop : 0) : undefined);
+    const card = wrap.querySelector(".sv-route-option-card");
+    return fitSnaps(base, {
+      peekBottom: offset(wrap.querySelector(".sv-route-departure") || wrap.querySelector(".sv-route-endpoints"), "bottom"),
+      halfBottom: offset(card, "bottom"),
+      halfTop: offset(card, "top"),
+    });
+  };
   useEffect(() => {
     const wrap = routeWrapRef.current;
     if (!wrap) return undefined;
-    const narrow = window.matchMedia("(max-width: 599px)");
-    return attachSheetGesture({
+    const media = window.matchMedia("(max-width: 599px)");
+    const control = attachSheetGesture({
       wrap,
       handle: routeHandleRef.current,
       scroller: routeScrollRef.current,
-      enabled: () => narrow.matches,
-      getSnaps: () => viewRef.current.routeSheetSnaps(),
+      enabled: () => media.matches,
+      getSnaps: routeSnaps,
       getHeight: () => viewRef.current.routeSheetHeight,
       onSettle: (height) => viewRef.current.settleRouteSheet(height),
     });
+    sheetControlRef.current = control;
+    return () => { control.detach(); sheetControlRef.current = null; };
+    // routeSnaps only reads refs, so it needn't re-attach the gesture.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [v.mapRoute]);
+
+  // The grab bar as a slider, so the sheet can be moved without a finger:
+  // arrow keys, or a swipe up/down with VoiceOver or TalkBack.
+  const SHEET_LEVELS = ["Peek", "Half open", "Fully open"];
+  const sheetLevel = (() => {
+    if (!narrow || !v.mapRoute || typeof window === "undefined") return 1;
+    const snaps = routeSnaps();
+    const h = v.routeSheetHeight || snaps[1];
+    return snaps.reduce((best, s, i) => (Math.abs(s - h) < Math.abs(snaps[best] - h) ? i : best), 0);
+  })();
+  const moveSheet = (event) => {
+    const control = sheetControlRef.current;
+    if (!control || !narrow) return;
+    const step = { ArrowUp: 1, ArrowRight: 1, PageUp: 1, ArrowDown: -1, ArrowLeft: -1, PageDown: -1 }[event.key];
+    const snaps = routeSnaps();
+    let next = null;
+    if (step) next = Math.max(0, Math.min(snaps.length - 1, sheetLevel + step));
+    else if (event.key === "Home") next = 0;
+    else if (event.key === "End") next = snaps.length - 1;
+    if (next == null) return;
+    event.preventDefault();
+    control.snapTo(snaps[next]);
+  };
   const [menuOpen, setMenuOpen] = useState(false);
   const [weatherOpen, setWeatherOpen] = useState(false);
   const [openRouteFor, setOpenRouteFor] = useState(null);
@@ -405,7 +463,24 @@ export function MapScreen({ v }) {
         <div ref={(el) => { routeWrapRef.current = el; v.setSheetRef(el); }} data-covers-map className={`sv-route-sheet-wrap${routePanelOpen ? " is-open" : ""}${v.routeSheetExpanded ? " is-expanded" : ""}`} style={v.sheetWrapStyle}>
           <section ref={routeCardRef} className="sv-route-sheet" style={v.sheetStyle} aria-label="Route options">
             <div ref={routeHandleRef} className="sv-route-sheet-toolbar" style={v.sheetGrabStyle}>
-              <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)", margin: "0 auto" }} />
+              {narrow ? (
+                <div
+                  className="sv-sheet-grip"
+                  role="slider"
+                  tabIndex={0}
+                  aria-label="Route options height"
+                  aria-orientation="vertical"
+                  aria-valuemin={0}
+                  aria-valuemax={SHEET_LEVELS.length - 1}
+                  aria-valuenow={sheetLevel}
+                  aria-valuetext={SHEET_LEVELS[sheetLevel]}
+                  onKeyDown={moveSheet}
+                >
+                  <span aria-hidden="true" />
+                </div>
+              ) : (
+                <div aria-hidden="true" style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)", margin: "0 auto" }} />
+              )}
               <button type="button" className="sv-route-panel-close" aria-label="Collapse route options" onPointerDown={(event) => event.stopPropagation()} onClick={() => { setOpenRouteFor(null); setDismissedRouteFor(v.destName); }}>
                 <Icon name="x" size={18} />
               </button>

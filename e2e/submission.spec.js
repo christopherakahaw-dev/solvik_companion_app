@@ -1322,24 +1322,77 @@ test("the route sheet follows the finger, settles on a snap, and flicks", async 
       expect(Math.abs(mid - (start + 120))).toBeLessThanOrEqual(3);
     },
   });
-  const afterSlow = await settled();
+  // At rest: still, and the app has been told that height (one render).
+  const atRest = async () => {
+    const h = await settled();
+    await page.waitForTimeout(150);
+    expect(await visible()).toBe(h);
+    const committed = await wrap.evaluate((el) => parseFloat(el.style.getPropertyValue("--sheet-visible")));
+    expect(Math.abs(committed - h)).toBeLessThanOrEqual(1);
+    return h;
+  };
+  const afterSlow = await atRest();
   expect(afterSlow).toBeGreaterThan(start + 100);
-  const snaps = await page.evaluate(() => {
-    const H = document.querySelector(".sv-route-sheet-wrap").parentElement.getBoundingClientRect().height;
-    return [Math.min(190, H * 0.3), Math.min(H * 0.5, H - 70), Math.max(150, H - 70)].map(Math.round);
-  });
-  expect(snaps.some((s) => Math.abs(s - afterSlow) <= 2), `settled on a snap (${afterSlow} vs ${snaps})`).toBe(true);
 
   // A short, fast flick down goes one snap down even though it barely moved.
-  const before = afterSlow;
   await drag(await handleY(), (await handleY()) + 60, { steps: 3, stepMs: 8 });
-  const afterFlick = await settled();
-  expect(afterFlick).toBeLessThan(before);
-  expect(snaps.some((s) => Math.abs(s - afterFlick) <= 2)).toBe(true);
+  const afterFlick = await atRest();
+  expect(afterFlick).toBeLessThan(afterSlow);
 
-  // A tap on the grab bar opens it fully.
+  // A tap on the grab bar opens it fully, just below the top buttons.
   await touch("touchStart", 200, await handleY());
   await touch("touchEnd", 200, await handleY());
-  expect(Math.abs((await settled()) - snaps[2])).toBeLessThanOrEqual(2);
+  const full = await atRest();
+  const host = await wrap.evaluate((el) => Math.round(el.parentElement.getBoundingClientRect().height));
+  expect(Math.abs(full - (host - 70))).toBeLessThanOrEqual(2);
   await expect(wrap).toHaveClass(/is-expanded/);
+  await expect(page.getByRole("slider", { name: "Route options height" })).toHaveAttribute("aria-valuetext", "Fully open");
+
+  // Caught mid-flight, it stops under the finger instead of finishing the trip.
+  await drag(await handleY(), (await handleY()) + 70, { steps: 3, stepMs: 8 });
+  await page.waitForTimeout(60);
+  const caughtAt = await visible();
+  await touch("touchStart", 200, await handleY());
+  await page.waitForTimeout(120);
+  expect(Math.abs((await visible()) - caughtAt)).toBeLessThan(60);
+  await touch("touchEnd", 200, await handleY());
+  await atRest();
+});
+
+test("the route sheet moves with the keyboard and announces its height", async ({ page, browserName }, info) => {
+  test.skip(browserName !== "chromium", "One engine is enough for the keyboard path.");
+  await setup(page, { home, school }, { tripOptions: [{ ...option, walkOnly: false, transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 0 }] }] });
+  await pickDestination(page);
+  const grip = page.getByRole("slider", { name: "Route options height" });
+  await expect(grip).toHaveAttribute("aria-valuetext", "Half open");
+  await grip.focus();
+  await page.keyboard.press("ArrowUp");
+  await expect(grip).toHaveAttribute("aria-valuetext", "Fully open");
+  await page.keyboard.press("Home");
+  await expect(grip).toHaveAttribute("aria-valuetext", "Peek");
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: info.outputPath("sheet-peek.png") });
+  await page.keyboard.press("ArrowUp");
+  await expect(grip).toHaveAttribute("aria-valuetext", "Half open");
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: info.outputPath("sheet-half.png") });
+});
+
+test("with Reduce Motion on, the sheet goes straight to its height", async ({ page, browserName }) => {
+  test.skip(browserName !== "chromium", "One engine is enough for the motion preference.");
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await setup(page, { home, school }, { tripOptions: [{ ...option, walkOnly: false, transitLegs: [{ mode: "BUS", service: "95", label: "BUS 95", legIndex: 0 }] }] });
+  await pickDestination(page);
+  const wrap = page.locator(".sv-route-sheet-wrap");
+  const grip = page.getByRole("slider", { name: "Route options height" });
+  await grip.focus();
+  await page.keyboard.press("End");
+  // No spring frames in between: on the very next check it is already there.
+  const heights = await wrap.evaluate((el) => new Promise((resolve) => {
+    const seen = [];
+    const read = () => { seen.push(Math.round(el.parentElement.getBoundingClientRect().bottom - el.getBoundingClientRect().top)); if (seen.length < 4) requestAnimationFrame(read); else resolve(seen); };
+    requestAnimationFrame(read);
+  }));
+  expect(new Set(heights).size).toBe(1);
+  await expect(grip).toHaveAttribute("aria-valuetext", "Fully open");
 });
