@@ -63,6 +63,9 @@
   --shadow-press: 0 1px 1px rgba(0, 0, 0, .4);
 }
 
+/* Navigation's two action buttons carry their own blue and red tints. */
+:root[data-theme="dark"] .sv-nav-actions .sv-nav-report { background: #1c2a3b !important; color: #a9c8f5 !important; border-color: #2c4260 !important; }
+:root[data-theme="dark"] .sv-nav-actions .sv-nav-end { background: #3b1f25 !important; color: #f2a8a1 !important; border-color: #5a2c33 !important; }
 /* The map tiles are light images; invert them and rotate the hue back, so
    water stays blue and parks stay green, then soften the contrast. Routes,
    markers and crowding circles live in other panes and keep their colours. */

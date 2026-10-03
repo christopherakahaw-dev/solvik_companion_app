@@ -221,6 +221,58 @@ export async function oneMapSearch(query, { near } = {}) {
     .slice(0, SEARCH_RESULT_LIMIT);
 }
 
+// What is at a point, for naming a dropped pin: the nearest building or block
+// within a short radius. OneMap writes empty fields as "NIL" or "null".
+const REVGEOCODE_URL = "https://www.onemap.gov.sg/api/public/revgeocode";
+const REVGEOCODE_RADIUS_M = 60;
+
+const present = (value) => {
+  const text = String(value ?? "").trim();
+  return text && !/^(nil|null|na)$/i.test(text) ? text : "";
+};
+
+export function placeFromReverse(json) {
+  const rows = (json && (json.GeocodeInfo || json.geocodeInfo)) || [];
+  for (const row of rows) {
+    const building = present(row.BUILDINGNAME);
+    const road = present(row.ROAD);
+    const block = present(row.BLOCK);
+    if (!building && !road) continue;
+    const street = [block && road ? `BLK ${block}` : "", road].filter(Boolean).join(" ");
+    return {
+      name: building || street,
+      address: [building ? street : "", present(row.POSTALCODE) ? `SINGAPORE ${present(row.POSTALCODE)}` : ""].filter(Boolean).join(" "),
+      postal: present(row.POSTALCODE) || null,
+    };
+  }
+  return null;
+}
+
+export async function oneMapReverse(lat, lng) {
+  const url = new URL(REVGEOCODE_URL);
+  url.searchParams.set("location", `${lat},${lng}`);
+  url.searchParams.set("buffer", String(REVGEOCODE_RADIUS_M));
+  url.searchParams.set("addressType", "All");
+  url.searchParams.set("otherFeatures", "N");
+  let lastFailure = null;
+  // Same token handling as search: OneMap has accepted both spellings.
+  for (const scheme of ["raw", "bearer", "refresh"]) {
+    const token = await getOneMapToken({ force: scheme === "refresh" });
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: scheme === "bearer" ? `Bearer ${token}` : token },
+      signal: AbortSignal.timeout(10_000),
+    });
+    const body = await readBody(res);
+    if (res.status === 401 || res.status === 403) {
+      lastFailure = upstreamError("OneMap reverse geocode", res, body);
+      continue;
+    }
+    if (!res.ok) throw upstreamError("OneMap reverse geocode", res, body);
+    return placeFromReverse(body.json);
+  }
+  throw lastFailure || new Error("OneMap reverse geocode returned no usable response");
+}
+
 const pad = (n) => String(n).padStart(2, "0");
 
 // Accepts either spelling and returns parts, so the wire format can be varied

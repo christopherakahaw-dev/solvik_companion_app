@@ -13,7 +13,7 @@ export const PERSONAS = {
   fixed: {
     id: "fixed",
     name: "Fixed Schedule",
-    blurb: "Same trip everyday. Notify me when my route gets disrupted.",
+    blurb: "Same trip every day. Notify me when my route gets disrupted.",
     example: "Reliable daily trips with a firm arrival time.",
     mode: "fast",
     // Notifies for any disruption as requested
