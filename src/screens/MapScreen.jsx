@@ -288,6 +288,26 @@ export function MapScreen({ v }) {
         {v.showSearchHome && (
           <div className="sv-map-results" aria-label="Search shortcuts and recent places">
             <Card className="sv-recent-card" tone="plain" style={{ padding: "var(--recent-card-padding, 14px 16px)" }}>
+              {v.searchShortcuts.length > 0 && (
+                <div className="sv-search-shortcuts" role="group" aria-label="Your places">
+                  {v.searchShortcuts.map((sp) => (
+                    <button
+                      key={sp.key}
+                      type="button"
+                      className={"sv-search-shortcut" + (sp.ready ? "" : " is-empty")}
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={sp.pick}
+                      aria-label={sp.ready ? `Directions to ${sp.label}, ${sp.detail}` : `Add your ${sp.label.toLowerCase()}`}
+                    >
+                      <span className="sv-search-shortcut-icon"><Icon name={sp.ready ? sp.icon : "plus"} size={16} /></span>
+                      <span className="sv-search-shortcut-copy">
+                        <strong>{sp.label}</strong>
+                        <small>{sp.detail}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               <button type="button" className="sv-nearby-bus-action" onMouseDown={(event) => event.preventDefault()} onClick={v.findNearbyBusStops}>
                 <span><Icon name="bus-front" size={18} /></span>
                 <span><strong>Bus stops near me</strong><small>Find the closest LTA stops using your location</small></span>
@@ -307,7 +327,7 @@ export function MapScreen({ v }) {
                       onClick={p.pick}
                     >
                       <span className="sv-recent-icon">
-                        <Icon name="history" size={14} />
+                        <Icon name={p.icon || "history"} size={14} />
                       </span>
                       <span className="sv-recent-copy">
                         <span className="sv-recent-name">{p.name}</span>
@@ -405,9 +425,16 @@ export function MapScreen({ v }) {
             <Card tone="plain" className="sv-search-results-card">
               <div className="sv-search-results-label">{v.resultsLabel}</div>
               {v.searchPending && (
-                <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "16px 0", font: "var(--type-body)", color: "var(--text-muted)" }}>
-                  <Icon name="loader-2" size={16} style={{ animation: "sv-spin 900ms linear infinite" }} />
-                  Searching…
+                <div role="status" aria-label="Searching" className="sv-search-skeleton">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="sv-skeleton-row" aria-hidden="true">
+                      <span className="sv-skeleton" style={{ width: 34, height: 34, borderRadius: 999 }} />
+                      <span style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
+                        <span className="sv-skeleton" style={{ width: `${62 - i * 12}%`, height: 13 }} />
+                        <span className="sv-skeleton" style={{ width: `${44 + i * 8}%`, height: 10 }} />
+                      </span>
+                    </div>
+                  ))}
                 </div>
               )}
               {!v.searchPending && v.searchError && (
@@ -422,6 +449,7 @@ export function MapScreen({ v }) {
               )}
               {v.results.map((p, i) => (
                 <button className="sv-search-result-row" key={i} onMouseDown={(event) => event.preventDefault()} onClick={p.pick} style={{ display: "flex", alignItems: "center", gap: 12, width: "100%", textAlign: "left", background: "none", border: "none", borderBottom: "1px solid var(--border-card)", padding: "14px 0", cursor: "pointer" }}>
+                  <span className="sv-search-result-icon" title={p.kindLabel} aria-hidden="true"><Icon name={p.icon || "map-pin"} size={16} /></span>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div className="sv-search-result-name">{p.name}</div>
                     <div className="sv-search-result-detail">{p.detail}</div>

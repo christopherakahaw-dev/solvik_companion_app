@@ -1,4 +1,5 @@
 import { Icon, Card, SectionLabel, Button } from "../design-system";
+import { Fold } from "../components/Fold";
 
 export function RewardsScreen({ v }) {
   return (
@@ -41,17 +42,6 @@ export function RewardsScreen({ v }) {
         </div>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 2px" }}>
-        <span style={{ flex: "none", whiteSpace: "nowrap", font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--sand-200)", borderRadius: 999, padding: "5px 9px" }}>
-          Sample data
-        </span>
-        <span style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>
-          {/* Points are counted from your own filed reports now, so the label
-              narrows to what is still illustrative: the catalogue. */}
-          The vouchers below are illustrative — nothing here issues a real one. Your points are counted from reports saved on this device.
-        </span>
-      </div>
-
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
         {v.pointStats.map((ps, i) => (
           <div key={i} style={{ background: "var(--surface-card)", border: "1px solid var(--border-card)", borderRadius: "var(--radius-card)", padding: "13px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
@@ -64,7 +54,47 @@ export function RewardsScreen({ v }) {
         ))}
       </div>
 
-      <SectionLabel>Redeem</SectionLabel>
+      {/* What your reports did comes first: it is real. The voucher catalogue
+          is illustrative, so it sits folded under a label that says so. */}
+      <section className="sv-my-reports" aria-label="Your recent reports">
+        <SectionLabel>Your recent reports</SectionLabel>
+        {v.hasReports ? (
+          <ul>
+            {v.myRecentReports.map((r) => (
+              <li key={r.id}>
+                <span className="sv-my-report-icon"><Icon name={r.icon} size={15} /></span>
+                <span className="sv-my-report-copy">
+                  <strong>{r.label}</strong>
+                  <small>{r.place} · {r.when}</small>
+                </span>
+                <span className="sv-my-report-meta">
+                  {r.points && <strong>{r.points}</strong>}
+                  <small>{r.state}</small>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="sv-my-reports-empty">
+            <p>No reports yet. Spot a packed platform, a broken lift or a full bus? Reporting it takes under a minute and earns points once it passes the checks.</p>
+            <Button variant="secondary" size="sm" iconRight="arrow-right" onClick={v.startReport}>Report something</Button>
+          </div>
+        )}
+      </section>
+
+      <Fold className="sv-rewards-fold" icon="gift" label="Sample rewards" value={v.rewardsSummary}>
+      <div className="sv-rewards-list">
+      <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 4px" }}>
+        <span style={{ flex: "none", whiteSpace: "nowrap", font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--sand-200)", borderRadius: 999, padding: "5px 9px" }}>
+          Sample data
+        </span>
+        <span style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>
+          {/* Points are counted from your own filed reports now, so the label
+              narrows to what is still illustrative: the catalogue. */}
+          The vouchers below are illustrative — nothing here issues a real one. Your points are counted from reports saved on this device.
+        </span>
+      </div>
+
       {v.vouchers.map((voucher, i) => (
         <div key={i} style={voucher.cardStyle}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
@@ -89,6 +119,8 @@ export function RewardsScreen({ v }) {
           )}
         </div>
       ))}
+      </div>
+      </Fold>
       <Card tone="hairline">
         <SectionLabel>Why reports earn points</SectionLabel>
         <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 8, textWrap: "pretty" }}>

@@ -31,6 +31,8 @@ async function openRewards(page, points) {
   });
   await page.goto("/");
   await page.getByRole("navigation").getByRole("button", { name: "Points", exact: true }).click();
+  // The catalogue is illustrative, so it is folded under its own label.
+  await page.getByRole("button", { name: /^Sample rewards/ }).click();
 }
 
 test("rewards stay locked when there are no confirmed points", async ({ page }) => {
@@ -52,6 +54,7 @@ test("redemption deducts confirmed points and persists", async ({ page }) => {
 
   await page.reload();
   await page.getByRole("navigation").getByRole("button", { name: "Points", exact: true }).click();
+  await page.getByRole("button", { name: /^Sample rewards/ }).click();
   await expect(page.getByRole("button", { name: "Redeemed", exact: true })).toBeDisabled();
   await expect(page.getByText("100", { exact: true })).toBeVisible();
 });

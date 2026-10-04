@@ -430,7 +430,7 @@ test("desktop content and active navigation use compact responsive layouts", asy
   await expect(navSheet.getByText(/^Arrive /)).toBeVisible();
   const compactNavBox = await navSheet.boundingBox();
   expect(compactNavBox.width).toBeLessThanOrEqual(401);
-  expect(compactNavBox.height).toBeLessThanOrEqual(181);
+  expect(compactNavBox.height).toBeLessThanOrEqual(209);
   expect(compactNavBox.x).toBeGreaterThanOrEqual(1280 - 416);
   await expect(page.locator(".sv-nav-steps")).toBeHidden();
   await page.getByRole("button", { name: "Show trip steps" }).click();
@@ -487,7 +487,7 @@ test("Go keeps the map visible and exposes stations without fighting step paging
   await page.getByRole("button", { name: "Go", exact: true }).click();
 
   const navSheet = page.locator(".sv-nav-sheet");
-  expect((await navSheet.boundingBox()).height).toBeLessThanOrEqual(181);
+  expect((await navSheet.boundingBox()).height).toBeLessThanOrEqual(209);
   await expect(page.locator(".sv-nav-steps")).toBeHidden();
   await expect(navSheet.locator(".sv-nav-title")).toHaveText("Walk to the bus stop");
   await expect(navSheet.locator(".sv-nav-detail")).toHaveText("2 min on foot");

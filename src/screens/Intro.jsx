@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Icon, Button } from "../design-system";
 import { styleText } from "../lib/styleText";
 import { SolvikBrand } from "../components/SolvikBrand";
@@ -83,6 +83,8 @@ function ArrivalTimePicker({ value, onChange }) {
 export function Intro({ v }) {
   const [editingFrom, setEditingFrom] = useState(false);
   const [editingTo, setEditingTo] = useState(false);
+  // Stable, so it runs once when a card opens its preview, not on every render.
+  const revealPreview = useCallback((el) => el?.scrollIntoView({ block: "nearest", behavior: "smooth" }), []);
   return (
     <div style={{ position: "absolute", inset: 0, background: "var(--sand-50)", display: "flex", flexDirection: "column", padding: "54px 20px 22px" }}>
       <div style={{ flex: "none", display: "flex", alignItems: "center", gap: 9 }}>
@@ -101,7 +103,7 @@ export function Intro({ v }) {
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Pick how you like to travel. Solvik uses it to rank your routes and to decide which disruptions are worth telling you about.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 22 }}>
               {v.introRoles.map((r) => (
-                <button key={r.id} onClick={r.toggle} style={styleText(r.style)}>
+                <button key={r.id} onClick={r.toggle} aria-pressed={r.on} style={styleText(r.style)}>
                   <span style={styleText(r.iconStyle)}>
                     <Icon name={r.icon} size={17} />
                   </span>
@@ -112,6 +114,17 @@ export function Intro({ v }) {
                     <span style={styleText(r.subStyle)}>{r.sub}</span>
                     {r.route ? <span style={{ display: "block", font: "var(--weight-bold) 11.5px/1.3 var(--font-body)", color: "var(--text-accent)", marginTop: 7 }}>{r.route}</span> : null}
                     {r.schedule ? <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: r.route ? 2 : 6 }}>{r.schedule}</span> : null}
+                    {r.on && (
+                      <span className="sv-intro-preview" ref={revealPreview}>
+                        <span className="sv-intro-preview-title">What this changes</span>
+                        {r.preview.map((item) => (
+                          <span key={item.text} className="sv-intro-preview-item">
+                            <Icon name={item.icon} size={14} />
+                            {item.text}
+                          </span>
+                        ))}
+                      </span>
+                    )}
                   </span>
                   <span style={styleText(r.checkStyle)}>
                     <Icon name="check" size={14} />
@@ -258,7 +271,7 @@ export function Intro({ v }) {
           )}
           {v.introCanSkip && <div style={{ marginLeft: "auto" }}>
             <Button variant="ghost" size="sm" onClick={v.introSkip}>
-              Skip for now
+              Set up later
             </Button>
           </div>}
         </div>

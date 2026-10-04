@@ -63,6 +63,19 @@ export function NavScreen({ v }) {
             {v.navTrackNote}
           </div>
         )}
+        {/* Announced, not just shown: the moment it matters, the phone is
+            often in a pocket or a hand that is holding on. */}
+        <div role="status" aria-live="assertive" className="sv-nav-alight-live">
+          {v.navGetOffAt && (
+            <div className="sv-nav-alight">
+              <span className="sv-nav-alight-icon"><Icon name="bell-ring" size={18} /></span>
+              <span className="sv-nav-alight-copy">
+                <strong>Get off at the next stop</strong>
+                <span>{v.navGetOffAt}</span>
+              </span>
+            </div>
+          )}
+        </div>
       </div>
 
       <div ref={cardRef} className={`sv-nav-sheet${v.navSheetCompact ? " is-compact" : ""}`} style={{ ...v.navSheetStyle, touchAction: v.navSheetExpanded ? "auto" : "pan-x" }}
@@ -92,16 +105,45 @@ export function NavScreen({ v }) {
         </div>
         <div className="sv-nav-summary" onPointerDown={v.navSheetCompact ? v.navSheetDrag : undefined}>
           <div className="sv-nav-current-step">
-            <div className="sv-nav-current-icon"><Icon name={v.navIcon} size={19} /></div>
+            {v.navLine ? (
+              <div className="sv-nav-current-line" style={{ background: v.navLine.bg, color: v.navLine.fg }}>
+                <Icon name={v.navLine.icon} size={14} />
+                <span>{v.navLine.text}</span>
+              </div>
+            ) : (
+              <div className="sv-nav-current-icon"><Icon name={v.navIcon} size={19} /></div>
+            )}
             <div className="sv-nav-current-copy">
               <div className="sv-nav-title">{v.navTitle}</div>
-              <div className="sv-nav-detail">{v.navDetail}</div>
+              {v.navNextBus ? (
+                <div className={"sv-nav-detail sv-nav-next-bus" + (v.navNextBus.soon ? " is-soon" : "")}>
+                  {v.navNextBus.live && <span className="sv-nav-live-dot" aria-hidden="true" />}
+                  {v.navNextBus.text}
+                </div>
+              ) : (
+                <div className="sv-nav-detail">{v.navDetail}</div>
+              )}
             </div>
             <div className="sv-nav-current-countdown">
               <strong>{v.navCountdown}</strong>
               <span>to go</span>
             </div>
           </div>
+          {v.navStrip.length > 1 && (
+            <ol className="sv-nav-strip" aria-label="Your journey">
+              {v.navStrip.map((item, i) => (
+                <li
+                  key={i}
+                  className={"is-" + item.state + (item.kind === "walk" ? " is-walk" : "")}
+                  style={item.kind === "ride" ? { background: item.bg, color: item.fg } : undefined}
+                  aria-label={`${item.spoken}${item.state === "now" ? ", now" : item.state === "done" ? ", done" : ""}`}
+                >
+                  <Icon name={item.icon} size={11} />
+                  {item.text}
+                </li>
+              ))}
+            </ol>
+          )}
           <div className="sv-nav-current-meta">
             <span><Icon name="clock" size={13} />{v.navRemainLabel}</span>
             <span>Arrive {v.navEta}</span>
