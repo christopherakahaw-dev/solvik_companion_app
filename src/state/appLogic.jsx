@@ -12,6 +12,8 @@ import { lineColour } from "../lib/lineColours";
 import { journeyStrip } from "../lib/journeyStrip";
 import { stopArrivalsSummary, stopArrivalsView } from "../lib/stopArrivals";
 import { arrivalKeys, detailRows } from "../lib/tripDetail";
+import { placeKind } from "../lib/placeKind";
+import { navStrip, rideBadge, rideTitle, alightNext, nextBusLine } from "../lib/navGuide";
 import { commuteOutlook, outlookCodes } from "../lib/outlook";
 import { worksLabel, worksDetail, mitigationsFor, roadWorksOnRoute, roadWorkLabel, roadWorkDetail, busChangesOnRoute, busChangeLabel, busChangeDetail } from "../lib/planned";
 import { loadJourneys, recordJourney, completeJourney, clearJourneys, journeySummary, seedSampleJourneys } from "../lib/journeys";
@@ -23,7 +25,7 @@ import { getWeather } from "../api/weather";
 import { getRoadConditions } from "../api/road";
 import { analyseCommuteMemory, rankRouteOptions } from "../api/ai";
 import { worstBandOn, roadLine, incidentNear } from "../lib/roadConditions";
-import { personaOf, personaList, scenarioCommute, scenarioDeparture, routeFitReason, modeFor, shouldInterrupt, reasonFor, DEFAULT_PERSONA, PERSONAS } from "../lib/persona";
+import { personaPreview, personaOf, personaList, scenarioCommute, scenarioDeparture, routeFitReason, modeFor, shouldInterrupt, reasonFor, DEFAULT_PERSONA, PERSONAS } from "../lib/persona";
 import { forecastAt, nowcastAt, weatherLine, isWet, walkAdjustment, rankRoutesForWeather, routeWeatherProfile, weatherIconName, singaporeDayPhase } from "../lib/weather";
 import { submitReport, loadReportGroups as fetchReportGroups, loadMyReports as fetchMyReports } from "../api/reports";
 import { groupsFromCounts } from "../lib/confidence";
@@ -75,7 +77,7 @@ const ORIGIN_FALLBACK = [1.3521, 103.8198];
 // and before the map follows them rather than holding still.
 const REPLAN_DRIFT_M = 150;
 const MAP_FOLLOW_M = 120;
-const NAV_COMPACT_H = 168;
+const NAV_COMPACT_H = 196;
 // The phone route sheet's full height stops this far from the top, below the
 // back and alerts buttons (they end ~60px down). Mirrored in app.css.
 const ROUTE_SHEET_TOP = 70;
@@ -2262,7 +2264,9 @@ export class AppLogic extends Component {
   }
 
   componentDidUpdate(prevProps, prevState) {
-    if (this.state.screen === "nav" && this.stepsEl) {
+    // The pager is display:none while the sheet is compact, and scrolling it
+    // then does nothing, so a step only counts as shown once it can be.
+    if (this.state.screen === "nav" && this.stepsEl && this.stepsEl.clientWidth > 0) {
       const idx = this._navIdx || 0;
       if (idx !== this._scrolledTo && (!this.userScrolled || Date.now() - this.userScrolled > 6000)) {
         this._scrolledTo = idx;
@@ -2867,6 +2871,7 @@ export class AppLogic extends Component {
       : selected?.route.schedule;
 
     const dotIndices = isFixed ? [0, 1] : [0];
+    let finishIntro = null;
 
     return {
       isIntro: sc === "intro",
@@ -2879,6 +2884,8 @@ export class AppLogic extends Component {
         id: p.id,
         label: p.name,
         sub: p.blurb,
+        on: selectedId === p.id,
+        preview: personaPreview(p.id),
         icon: scenarioIcon[p.id],
         route: p.route.label,
         schedule: p.route.schedule,
@@ -2930,21 +2937,23 @@ export class AppLogic extends Component {
           ? (selected ? (selected.id === "fixed" ? "Continue with Fixed Schedule" : `Continue with ${selected.name}`) : "Choose one to continue")
           : (isFixed && (!customFrom || !customTo) ? "Set locations to continue" : "Show my route"),
       introError: s.introError || "",
-      introCanSkip: false,
+      // The daily journey can wait: picking a style is enough to start, and the
+      // commute can be added from Plan whenever it suits.
+      introCanSkip: step === 1 && isFixed && !s.introSaving,
       introInvalid: false,
       introDisabled: Boolean(s.introSaving) || (step === 0 && !selected) || (step === 1 && isFixed && (!customFrom || !customTo)),
-      introNext: async () => {
+      introNext: finishIntro = async (_event, { skipJourney = false } = {}) => {
         if (step === 0 && !selected) return;
         if (step === 0 && isFixed) return this.setState({ introStep: 1 });
-        if (step === 1 && isFixed && (!customFrom || !customTo)) return;
+        if (step === 1 && isFixed && !skipJourney && (!customFrom || !customTo)) return;
         const persona = selected || personaOf(DEFAULT_PERSONA);
         const schedulePlace = (place, end) => {
           if (!place) return null;
           const [lat, lng] = place.ll || [];
           return { ...place, id: `schedule-${end}:${Number(lat).toFixed(5)},${Number(lng).toFixed(5)}` };
         };
-        const fromPlace = schedulePlace(customFrom, "from") || (isFixed ? persona.route.from : null);
-        const toPlace = schedulePlace(customTo, "to") || (isFixed ? persona.route.to : null);
+        const fromPlace = skipJourney ? null : schedulePlace(customFrom, "from") || (isFixed ? persona.route.from : null);
+        const toPlace = skipJourney ? null : schedulePlace(customTo, "to") || (isFixed ? persona.route.to : null);
         const [arrH, arrM] = arriveByTime.split(":").map((n) => parseInt(n, 10) || 0);
         const arriveByMins = arrH * 60 + arrM;
         const [lH, lM] = (leaveTime || "07:40").split(":").map((n) => parseInt(n, 10) || 0);
@@ -3029,6 +3038,7 @@ export class AppLogic extends Component {
               trips: { key: null, options: [], pending: false, error: null },
             });
             store(ONBOARDED_KEY, 1);
+            if (skipJourney) this.flash("Add your daily journey any time in Plan");
           }
         } catch (error) {
           this.setState({ introSaving: false, introError: error?.message || "Setup could not be saved. Try again." });
@@ -3041,11 +3051,7 @@ export class AppLogic extends Component {
           this.setState({ introStep: Math.max(0, step - 1), introError: "" });
         }
       },
-      introSkip: () => {
-        this.setState({ screen: "map", introStep: 0 });
-        store(ONBOARDED_KEY, 1);
-        this.flash("Set your places any time in Plan");
-      },
+      introSkip: () => finishIntro(null, { skipJourney: true }),
     };
   }
 
@@ -3282,6 +3288,8 @@ export class AppLogic extends Component {
       : resultSource;
     const results = rankedResults.slice(0, 6).map((p) => ({
       ...p,
+      icon: placeKind(p.name, p.detail).icon,
+      kindLabel: placeKind(p.name, p.detail).label,
       detail: areaCenter ? `${p.detail} · ${nearbyDistance(p.areaMetres)}` : p.detail,
       kind: areaCenter ? "Nearby" : p.kind,
       // Clearing the query here is what stops the panel reopening when the
@@ -3454,12 +3462,28 @@ export class AppLogic extends Component {
     const liveStopLine = curStops
       ? "Next: " + curStops[passed] + " · " + stopsLeft + " stop" + (stopsLeft === 1 ? "" : "s") + " to " + curStep.alight
       : curStep.detail;
+    const getOffAt = alightNext(curStep, stopsLeft, arrived);
+    // One buzz per ride, the moment its last stop is next — the cue people
+    // otherwise get by watching the station names go past.
+    const alertKey = getOffAt ? `${s.navStart}:${navIdx}` : null;
+    if (alertKey && alertKey !== this._alightAlerted) {
+      this._alightAlerted = alertKey;
+      try {
+        navigator.vibrate?.([120, 80, 120]);
+      } catch {
+        // Vibration is a nicety; the banner says the same thing.
+      }
+    }
 
     const nav = {
       navIcon: arrived ? "circle-check" : curStep.icon || "navigation",
-      navTitle: arrived ? "You have arrived" : curStep.title || "Getting your next step",
+      navTitle: arrived ? "You have arrived" : rideTitle(curStep) || curStep.title || "Getting your next step",
       navDetail: arrived ? destShort : liveStopLine,
       navCountdown: arrived ? "Done" : fmtS(stepRem),
+      navStrip: navStrip(navArr, navIdx, arrived),
+      navLine: arrived ? null : rideBadge(curStep),
+      navGetOffAt: getOffAt,
+      navNextBus: arrived ? null : nextBusLine(navArr, navIdx, s.arrivals),
       navStepLabel: arrived ? "Trip complete" : navArr.length ? "Step " + (navIdx + 1) + " of " + navArr.length : "Preparing trip",
       navEta: navOpt ? singaporeClock(Date.now() + Math.max(0, navTotal - navElapsed) * 1000) : "",
       navRemainLabel: arrived ? "Arrived · " + destShort : Math.max(1, Math.ceil((navTotal - navElapsed) / 60)) + " min left · " + destShort,
@@ -3691,8 +3715,27 @@ export class AppLogic extends Component {
         { label: "Bus hubs", query: "bus interchange", icon: "bus" },
       ].map((category) => ({ ...category, pick: () => this.setState({ query: category.query }) })),
       areaSearchDetail: s.pin?.detail || "Dropped pin",
+      // Saved places first, one tap each: the trips people make most are the
+      // ones they should never have to type.
+      searchShortcuts: [
+        { key: "home", label: "Home", icon: "house" },
+        { key: "work", label: "Work", icon: "briefcase" },
+        { key: "school", label: "School", icon: "graduation-cap" },
+      ].map((sp) => {
+        const place = (s.savedPlaces || {})[sp.key];
+        const ready = Array.isArray(place?.ll);
+        return {
+          ...sp,
+          detail: ready ? place.name : "Add",
+          ready,
+          pick: ready
+            ? () => this.chooseDest({ name: place.name, detail: place.address || sp.label, ll: place.ll, kind: sp.label })
+            : () => this.setState({ placesOpen: true, placesDraft: { ...(s.savedPlaces || {}) }, placesDraftPending: {}, searchOpen: false, placesShowDraft: s.routingPreferences?.showSavedPlaces !== false }),
+        };
+      }).filter((sp) => sp.ready || sp.key !== "school"),
       recents: (s.recents || []).map((r) => ({
         name: r.name,
+        icon: placeKind(r.name, r.detail).icon,
         detail: r.detail || "Recent destination",
         pick: () => this.chooseDest({ name: r.name, detail: r.detail || "", ll: r.ll, kind: r.kind || "Recent" }),
       })),
@@ -4028,7 +4071,7 @@ export class AppLogic extends Component {
       headerSub: {
         map: "OneMap · Singapore Land Authority",
         report: stopLabelOf(s.stop.data) ? `${stopLabelOf(s.stop.data)} · reports stay live 30 min` : "Reports stay live 30 min",
-        rewards: "Sample rewards data",
+        rewards: "Earned from reports saved on this device",
         plan: (() => {
           const n = (s.savedList || []).length;
           const today = new Date().toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" });
@@ -4068,6 +4111,7 @@ export class AppLogic extends Component {
       }),
       goAccount: () => this.go("account"),
       goRewards: () => this.go("rewards"),
+      startReport: () => this.go("report"),
       // "installed" | "prompt" (Android/desktop Chrome) | "ios" | "unavailable"
       installState: (() => {
         if (typeof window === "undefined") return "unavailable";
@@ -4217,11 +4261,33 @@ export class AppLogic extends Component {
           tierBarStyle: { width: Math.round(Math.max(0, Math.min(1, progress)) * 100) + "%", height: "100%", background: "var(--crowd-light)", borderRadius: 999, transition: "width var(--dur-slow) var(--ease-out)" },
         };
       })(),
+      // Counted from your own saved reports — each one has passed the
+      // server's checks before it was kept, so these are all things that
+      // happened, not estimates.
       pointStats: [
-        { icon: "megaphone", value: String(mine.length), label: "Reports saved" },
-        { icon: "badge-check", value: String(mine.filter((r) => r.state === "confirmed").length), label: "Checks passed" },
-        { icon: "hard-drive", value: String(mine.length), label: "Stored locally" },
+        { icon: "megaphone", value: String(mine.length), label: "Reports filed" },
+        { icon: "map-pin", value: String(new Set(mine.map((r) => r.stationName).filter(Boolean)).size), label: "Places covered" },
+        { icon: "sparkles", value: confirmedPoints.toLocaleString(), label: "Points earned" },
       ],
+      myRecentReports: mine.slice().sort((a, b) => (b.at || 0) - (a.at || 0)).slice(0, 5).map((r) => {
+        const type = rTypes.find((t) => t.id === r.kind);
+        const at = new Date(r.at || 0);
+        const today = new Date().toDateString() === at.toDateString();
+        return {
+          id: r.id,
+          icon: type?.icon || "megaphone",
+          label: type?.label || "Report",
+          place: r.stationName || "Nearby",
+          when: today ? `Today, ${singaporeClock(at.getTime())}` : at.toLocaleDateString("en-SG", { timeZone: "Asia/Singapore", day: "numeric", month: "short" }),
+          points: r.points ? `+${r.points}` : "",
+          state: r.state === "pending" ? "Waiting" : "Checked",
+        };
+      }),
+      hasReports: mine.length > 0,
+      rewardsSummary: (() => {
+        const open = vouchers.filter((voucher) => !voucher.disabled).length;
+        return open ? `${open} you can redeem now · illustrative` : "Illustrative · nothing here issues a real voucher";
+      })(),
       ...this.addCommuteVals(s),
     };
   }

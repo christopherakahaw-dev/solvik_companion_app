@@ -102,6 +102,21 @@ export function personaList() {
   return Object.values(PERSONAS);
 }
 
+// What choosing this style actually changes, read from the settings above
+// rather than written separately, so the onboarding preview can't promise
+// anything the app doesn't do.
+const RANKS = { fast: "Fastest routes first", quiet: "Least crowded routes first", step: "Step-free routes first" };
+export function personaPreview(id) {
+  const p = personaOf(id);
+  return [
+    { icon: "list-ordered", text: RANKS[p.mode] || "Best overall routes first" },
+    { icon: "bell", text: p.interruptAfterMins > 0 ? `Alerts for delays over ${p.interruptAfterMins} min` : "Alerts for any disruption on your route" },
+    p.liftOutageBlocks ? { icon: "accessibility", text: "Lift outages count as a blocked route" } : null,
+    p.rainChangesRoute ? { icon: "cloud-rain", text: "Re-plans when rain is expected" } : null,
+    p.largeText ? { icon: "type", text: "Larger text throughout" } : null,
+  ].filter(Boolean);
+}
+
 export function scenarioCommute(id, overrides = {}) {
   const persona = personaOf(id);
   const route = {

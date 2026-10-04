@@ -104,3 +104,13 @@ test("route alternatives explain why they fit the selected commuter less well", 
   assert.match(routeFitReason("flexible", { ...best, crowdLevel: "busy" }, best, false), /busier/);
   assert.match(routeFitReason("stepFree", { ...best, accessibleScore: 0.5 }, best, false), /wheelchair accessible/);
 });
+
+test("the onboarding preview is read from each style's own settings", async () => {
+  const { personaPreview } = await import("../src/lib/persona.js");
+  const texts = (id) => personaPreview(id).map((item) => item.text);
+  assert.ok(texts("fixed").includes("Fastest routes first"));
+  assert.ok(texts("flexible").includes("Alerts for delays over 5 min"));
+  assert.ok(texts("stepFree").includes("Lift outages count as a blocked route"));
+  assert.ok(texts("stepFree").includes("Larger text throughout"));
+  assert.ok(!texts("fixed").includes("Larger text throughout"));
+});
