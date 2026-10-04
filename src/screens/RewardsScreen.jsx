@@ -8,7 +8,7 @@ export function RewardsScreen({ v }) {
         <div style={{ position: "absolute", right: -38, top: -38, width: 150, height: 150, borderRadius: 999, background: "rgba(255,255,255,.06)" }} />
         <div style={{ position: "absolute", right: 6, bottom: -52, width: 110, height: 110, borderRadius: 999, background: "rgba(255,255,255,.05)" }} />
         <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 9 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.14)", borderRadius: 999, padding: "6px 11px", font: "var(--weight-bold) 11px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,.14)", borderRadius: 999, padding: "6px 12px", font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase" }}>
             <Icon name="medal" size={14} />
             {v.tierName}
           </div>
@@ -19,7 +19,7 @@ export function RewardsScreen({ v }) {
           <div style={{ font: "var(--type-body)", opacity: 0.72 }}>points</div>
           {/* Was "+180 this week", which nothing counted. */}
           {v.hasPending && (
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, font: "var(--weight-bold) 12px/1 var(--font-body)", color: "var(--crowd-moderate)" }}>
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 5, font: "var(--weight-bold) var(--size-micro)/1 var(--font-body)", color: "var(--crowd-moderate)" }}>
               <Icon name="hourglass" size={15} />
               {v.pendingPoints} pending
             </div>
@@ -34,7 +34,7 @@ export function RewardsScreen({ v }) {
           <div style={{ height: 8, borderRadius: 999, background: "rgba(255,255,255,.16)", overflow: "hidden" }}>
             <div style={v.tierBarStyle} />
           </div>
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 9, font: "var(--weight-regular) 11px/1 var(--font-body)", opacity: 0.76 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 9, font: "var(--weight-regular) var(--size-tiny)/1 var(--font-body)", opacity: 0.76 }}>
             <span>{v.tierFrom}</span>
             <span>{v.tierGapLine}</span>
             <span>{v.tierTo || ""}</span>
@@ -44,12 +44,12 @@ export function RewardsScreen({ v }) {
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 10 }}>
         {v.pointStats.map((ps, i) => (
-          <div key={i} style={{ background: "var(--surface-card)", border: "1px solid var(--border-card)", borderRadius: "var(--radius-card)", padding: "13px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
+          <div key={i} style={{ background: "var(--surface-card)", border: "1px solid var(--border-card)", borderRadius: "var(--radius-card)", padding: "14px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
             <div style={{ width: 28, height: 28, borderRadius: 999, background: "var(--accent-soft)", color: "var(--text-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name={ps.icon} size={15} />
             </div>
             <div style={{ font: "var(--weight-heavy) 20px/1 var(--font-numeric)", fontVariantNumeric: "tabular-nums", color: "var(--text-strong)" }}>{ps.value}</div>
-            <div style={{ font: "var(--weight-regular) 11px/1.25 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>{ps.label}</div>
+            <div style={{ font: "var(--weight-regular) var(--size-tiny)/1.25 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>{ps.label}</div>
           </div>
         ))}
       </div>
@@ -85,7 +85,7 @@ export function RewardsScreen({ v }) {
       <Fold className="sv-rewards-fold" icon="gift" label="Sample rewards" value={v.rewardsSummary}>
       <div className="sv-rewards-list">
       <div style={{ display: "flex", alignItems: "center", gap: 8, margin: "0 0 4px" }}>
-        <span style={{ flex: "none", whiteSpace: "nowrap", font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--sand-200)", borderRadius: 999, padding: "5px 9px" }}>
+        <span style={{ flex: "none", whiteSpace: "nowrap", font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: "var(--text-muted)", background: "var(--sand-200)", borderRadius: 999, padding: "6px 10px" }}>
           Sample data
         </span>
         <span style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>

@@ -1841,7 +1841,7 @@ export class AppLogic extends Component {
       : DAYS.filter((d) => days.indexOf(d) >= 0).join(", ");
     const pill = (on) =>
       "flex:none;max-width:100%;overflow-wrap:anywhere;padding:10px 14px;border-radius:999px;cursor:pointer;white-space:normal;" +
-      "font:var(--weight-bold) 13px/1 var(--font-body);transition:background .15s,color .15s;" +
+      "font:var(--weight-bold) var(--size-caption)/1 var(--font-body);transition:background .15s,color .15s;" +
       (on
         ? "background:var(--accent);border:1px solid var(--accent);color:var(--text-on-accent);"
         : "background:var(--accent-soft);border:1px solid var(--border-card);color:var(--text-body);");
@@ -1891,7 +1891,7 @@ export class AppLogic extends Component {
         return {
           label: d.slice(0, 1),
           toggle: () => this.setState({ addDays: on ? days.filter((x) => x !== d) : DAYS.filter((x) => days.indexOf(x) >= 0 || x === d) }),
-          style: "flex:1;min-width:0;height:40px;border-radius:999px;cursor:pointer;font:var(--weight-bold) 13px/1 var(--font-body);" +
+          style: "flex:1;min-width:0;height:40px;border-radius:999px;cursor:pointer;font:var(--weight-bold) var(--size-caption)/1 var(--font-body);" +
             (on ? "background:var(--accent);border:1px solid var(--accent);color:var(--text-on-accent);" : "background:var(--sand-100);border:1px solid var(--border-card);color:var(--text-muted);"),
         };
       }),
@@ -1902,7 +1902,7 @@ export class AppLogic extends Component {
       ].map((p) => ({
         label: p.label,
         pick: () => this.setState({ addDays: p.set }),
-        style: "flex:none;padding:8px 13px;border-radius:999px;cursor:pointer;font:var(--weight-semibold) 12px/1 var(--font-body);background:var(--surface-card);border:1px solid var(--border-card);color:var(--text-body)",
+        style: "flex:none;padding:8px 14px;border-radius:999px;cursor:pointer;font:var(--weight-semibold) var(--size-micro)/1 var(--font-body);background:var(--surface-card);border:1px solid var(--border-card);color:var(--text-body)",
       })),
       addModeOpts: ["Fastest", "Comfort", "Step-free"].map((m) => ({ label: m, style: pill(m === mode), pick: () => this.setState({ addMode: m }) })),
       // Leave at a time, or be somewhere by one — the second lets Solvik work
@@ -2189,9 +2189,9 @@ export class AppLogic extends Component {
           label: n === 0 ? "Now" : slotLabel(iso),
           active: on,
           pick: () => this.setState({ fcAt: iso }),
-          style: "flex:none;display:flex;flex-direction:column;align-items:center;gap:7px;padding:9px 13px;border-radius:14px;cursor:pointer;transition:background .16s,border-color .16s;" +
+          style: "flex:none;display:flex;flex-direction:column;align-items:center;gap:7px;padding:10px 14px;border-radius:14px;cursor:pointer;transition:background .16s,border-color .16s;" +
             (on ? "background:var(--accent);border:1.5px solid var(--accent);" : "background:var(--sand-100);border:1.5px solid var(--border-card);"),
-          timeStyle: "font:var(--weight-bold) 12.5px/1 var(--font-numeric);font-variant-numeric:tabular-nums;color:" + (on ? "#fff" : "var(--text-body)"),
+          timeStyle: "font:var(--weight-bold) var(--size-micro)/1 var(--font-numeric);font-variant-numeric:tabular-nums;color:" + (on ? "#fff" : "var(--text-body)"),
           barStyle: "display:block;width:30px;height:4px;border-radius:999px;background:" + (on ? "#fff" : "var(--sand-400)") + ";opacity:" + (on ? 0.9 : 0.8),
         };
       }),
@@ -2232,9 +2232,9 @@ export class AppLogic extends Component {
         toggleRead: () => {
           if (!isRead(f)) this.setState((st) => ({ readAlerts: markAlertsRead([f.id], st.readAlerts) }));
         },
-        cardStyle: "width:100%;text-align:left;display:block;cursor:pointer;padding:13px 14px;border-radius:16px;background:var(--surface-card);opacity:" + (isRead(f) ? ".6" : "1") + ";border:1px solid " + (isRead(f) ? "var(--border-card)" : sevTone[f.sev] || "var(--border-card)"),
-        badgeStyle: "flex:none;padding:3px 8px;border-radius:999px;font:var(--weight-heavy) 11px/1.3 var(--font-body);letter-spacing:.02em;color:#fff;background:" + (sevTone[f.sev] || "var(--sand-500)"),
-        tagStyle: "font:var(--weight-semibold) 11px/1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)",
+        cardStyle: "width:100%;text-align:left;display:block;cursor:pointer;padding:14px 14px;border-radius:16px;background:var(--surface-card);opacity:" + (isRead(f) ? ".6" : "1") + ";border:1px solid " + (isRead(f) ? "var(--border-card)" : sevTone[f.sev] || "var(--border-card)"),
+        badgeStyle: "flex:none;padding:3px 8px;border-radius:999px;font:var(--weight-heavy) var(--size-tiny)/1.3 var(--font-body);letter-spacing:.02em;color:#fff;background:" + (sevTone[f.sev] || "var(--sand-500)"),
+        tagStyle: "font:var(--weight-semibold) var(--size-tiny)/1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;color:var(--text-muted)",
       })),
       faultsPending: !!faults.pending,
       faultsError: faults.error || null,
@@ -2258,8 +2258,8 @@ export class AppLogic extends Component {
       fcBellStyle: "position:relative;flex:none;margin-left:auto;width:46px;height:46px;border-radius:999px;display:flex;align-items:center;justify-content:center;cursor:pointer;border:none;color:" +
         // Inverted while open: page colour on text colour, so it reads in both themes.
         (s.fcAlerts ? "var(--surface-page)" : "var(--text-strong)") + ";background:" + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)") + ";box-shadow:0 4px 14px rgba(32,30,29,.18)",
-      fcBellDotStyle: "position:absolute;top:5px;right:5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:var(--weight-heavy) 10.5px/1 var(--font-numeric);color:#fff;background:var(--status-fault);border:2px solid " + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)"),
-      fcFaultCountStyle: "font:var(--weight-bold) 11px/1 var(--font-body);padding:4px 9px;border-radius:999px;color:var(--status-fault);background:color-mix(in oklch, var(--status-fault) 12%, transparent)",
+      fcBellDotStyle: "position:absolute;top:5px;right:5px;min-width:17px;height:17px;padding:0 4px;border-radius:999px;display:flex;align-items:center;justify-content:center;font:var(--weight-heavy) var(--size-tiny)/1 var(--font-numeric);color:#fff;background:var(--status-fault);border:2px solid " + (s.fcAlerts ? "var(--text-strong)" : "var(--surface-card)"),
+      fcFaultCountStyle: "font:var(--weight-bold) var(--size-tiny)/1 var(--font-body);padding:4px 10px;border-radius:999px;color:var(--status-fault);background:color-mix(in oklch, var(--status-fault) 12%, transparent)",
     };
   }
 
@@ -2593,18 +2593,18 @@ export class AppLogic extends Component {
           ? "background:var(--sand-200,rgba(32,30,29,.06));color:var(--text-body)"
           : "background:var(--accent-soft);color:var(--text-accent)"),
       arrivalStyle:
-        "font:var(--weight-bold) 12px/1.2 var(--font-body);font-variant-numeric:tabular-nums;color:" +
+        "font:var(--weight-bold) var(--size-micro)/1.2 var(--font-body);font-variant-numeric:tabular-nums;color:" +
         (row.arrival && row.arrival.tone === "accent" ? "var(--text-accent)" : "var(--text-muted)"),
       loadDotStyle: row.arrival && row.arrival.load
         ? "display:inline-block;width:7px;height:7px;border-radius:999px;margin-right:6px;background:" + tone[row.arrival.load]
         : "display:none",
       crowdStyle: row.crowdLevel
-        ? "font:var(--weight-semibold) 11px/1 var(--font-body);color:" + tone[row.crowdLevel]
+        ? "font:var(--weight-semibold) var(--size-tiny)/1 var(--font-body);color:" + tone[row.crowdLevel]
         : "display:none",
       crowdLabel: row.crowdLevel ? WORD[row.crowdLevel] + " now" : "",
       stopChipStyle:
-        "font:var(--weight-medium) 11px/1 var(--font-body);color:var(--text-muted);background:var(--accent-soft);" +
-        "border-radius:999px;padding:5px 9px;white-space:nowrap",
+        "font:var(--weight-medium) var(--size-tiny)/1 var(--font-body);color:var(--text-muted);background:var(--accent-soft);" +
+        "border-radius:999px;padding:6px 10px;white-space:nowrap",
     };
   }
 
@@ -2859,7 +2859,7 @@ export class AppLogic extends Component {
 
     const scenarioIcon = { fixed: "clock", flexible: "shuffle", stepFree: "accessibility" };
     const rolePill = (on) =>
-      "display:flex;align-items:center;gap:12px;padding:14px 15px;border-radius:var(--radius-card);cursor:pointer;font:var(--font-body);transition:background .15s,border-color .15s;" +
+      "display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:var(--radius-card);cursor:pointer;font:var(--font-body);transition:background .15s,border-color .15s;" +
       (on ? "background:var(--accent-soft);border:1px solid var(--accent);color:var(--text-strong);" : "background:var(--surface-card);border:1px solid var(--border-card);color:var(--text-strong);");
     const total = isFixed ? 2 : 1;
     const journeyTitle = isFixed
@@ -3105,7 +3105,7 @@ export class AppLogic extends Component {
   };
   lineStyle(label) {
     const { bg, fg } = lineColour(label);
-    return { display: "inline-flex", alignItems: "center", borderRadius: "999px", padding: "5px 10px", font: "var(--weight-bold) 12px/1 var(--font-body)", letterSpacing: ".01em", background: bg, color: fg, whiteSpace: "nowrap" };
+    return { display: "inline-flex", alignItems: "center", borderRadius: "999px", padding: "6px 10px", font: "var(--weight-bold) var(--size-micro)/1 var(--font-body)", letterSpacing: ".01em", background: bg, color: fg, whiteSpace: "nowrap" };
   }
   level(v) { return v < 0.45 ? "light" : v < 0.75 ? "moderate" : "busy"; }
   barsFor(l) { return [{ style: { width: "11px", height: "11px", borderRadius: "999px", background: CROWD[l], display: "block" } }]; }
@@ -3215,7 +3215,7 @@ export class AppLogic extends Component {
       return {
         ...t, icon, pick: () => this.setState({ repType: t.id, rep: "confirm", sev: null }), tone: on ? "accent" : "plain",
         iconStyle: { width: 34, height: 34, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: on ? "var(--accent)" : "var(--accent-soft)", color: on ? "var(--text-on-accent)" : "var(--text-accent)" },
-        ptsStyle: { display: "inline-flex", alignItems: "center", gap: 4, alignSelf: "flex-start", font: "var(--weight-bold) 11px/1 var(--font-body)", color: "var(--text-accent)", background: on ? "var(--surface-card)" : "var(--accent-soft)", borderRadius: 999, padding: "6px 9px" },
+        ptsStyle: { display: "inline-flex", alignItems: "center", gap: 4, alignSelf: "flex-start", font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", color: "var(--text-accent)", background: on ? "var(--surface-card)" : "var(--accent-soft)", borderRadius: 999, padding: "6px 10px" },
       };
     });
     const chosen = rTypes.find((t) => t.id === s.repType) || rTypes[0];
@@ -3258,7 +3258,7 @@ export class AppLogic extends Component {
         ...v, cta: redeemed ? "Redeemed" : can ? "Redeem" : "Locked", variant: can ? "primary" : "secondary", disabled: !can, locked, redeemed,
         icon: ["coffee", "credit-card", "shopping-basket", "ticket"][vi] || "gift",
         gap: Math.max(0, v.cost - availablePoints).toLocaleString(),
-        cardStyle: { background: "var(--surface-card)", border: "1px solid var(--border-card)", borderRadius: "var(--radius-card)", padding: "14px 15px", opacity: can ? 1 : 0.78 },
+        cardStyle: { background: "var(--surface-card)", border: "1px solid var(--border-card)", borderRadius: "var(--radius-card)", padding: "14px 16px", opacity: can ? 1 : 0.78 },
         iconStyle: { flex: "none", width: 34, height: 34, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: can ? "var(--accent-soft)" : "var(--sand-100)", color: can ? "var(--text-accent)" : "var(--text-muted)" },
         barStyle: { width: Math.round(Math.min(1, availablePoints / v.cost) * 100) + "%", height: "100%", background: "var(--accent)", borderRadius: 999 },
         redeem: () => this.redeemReward(v),
@@ -3554,8 +3554,8 @@ export class AppLogic extends Component {
             name,
             status: sNext ? "Next" : sDone ? "Passed" : "Upcoming",
             rowStyle: { display: "flex", alignItems: "center", gap: 10, height: ROW, position: "relative", zIndex: 1 },
-            style: { flex: 1, minWidth: 0, font: (sNext ? "var(--weight-bold)" : "var(--weight-regular)") + " 13px/1.25 var(--font-body)", color: sNext ? "var(--text-accent)" : sDone ? "var(--text-subtle)" : "var(--text-body)", textWrap: "pretty" },
-            statusStyle: { flex: "none", font: "var(--weight-semibold) 9.5px/1 var(--font-body)", color: sNext ? "var(--text-accent)" : "var(--text-muted)", opacity: sNext ? 1 : 0.72 },
+            style: { flex: 1, minWidth: 0, font: (sNext ? "var(--weight-bold)" : "var(--weight-regular)") + " var(--size-caption)/1.25 var(--font-body)", color: sNext ? "var(--text-accent)" : sDone ? "var(--text-subtle)" : "var(--text-body)", textWrap: "pretty" },
+            statusStyle: { flex: "none", font: "var(--weight-semibold) var(--size-tiny)/1 var(--font-body)", color: sNext ? "var(--text-accent)" : "var(--text-muted)", opacity: sNext ? 1 : 0.72 },
             dotStyle: { width: sNext ? 11 : 9, height: sNext ? 11 : 9, borderRadius: 999, background: sDone || sNext ? "var(--accent)" : "var(--surface-card)", border: "2px solid " + (sDone || sNext ? "var(--accent)" : "var(--sand-400)"), boxShadow: sNext ? "0 0 0 4px var(--accent-soft)" : "none" },
           };
         });
@@ -3566,9 +3566,9 @@ export class AppLogic extends Component {
           laneStyle: { position: "absolute", left: 11, top: ROW / 2, height: span, width: 4, background: "var(--sand-200)", borderRadius: 999 },
           laneFillStyle: { position: "absolute", left: 11, top: ROW / 2, height: Math.round(span * prog), width: 4, background: "var(--accent)", borderRadius: 999, transition: "height 1s linear" },
           state: done ? "Done" : cur ? "Now" : "Next",
-          cardStyle: { flex: "0 0 100%", minWidth: 0, maxHeight: "100%", boxSizing: "border-box", scrollSnapAlign: "start", background: cur ? "var(--accent-soft)" : "var(--surface-card)", border: "1px solid " + (cur ? "transparent" : "var(--border-card)"), borderRadius: "var(--radius-card)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", overscrollBehaviorY: "contain", opacity: done ? 0.62 : 1 },
+          cardStyle: { flex: "0 0 100%", minWidth: 0, maxHeight: "100%", boxSizing: "border-box", scrollSnapAlign: "start", background: cur ? "var(--accent-soft)" : "var(--surface-card)", border: "1px solid " + (cur ? "transparent" : "var(--border-card)"), borderRadius: "var(--radius-card)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 7, overflowY: "auto", overscrollBehaviorY: "contain", opacity: done ? 0.62 : 1 },
           iconWrapStyle: { flex: "none", width: 30, height: 30, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: cur ? "var(--accent)" : "var(--sand-100)", color: cur ? "var(--text-on-accent)" : "var(--text-body)" },
-          chipStyle: { font: "var(--weight-bold) 10px/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: cur ? "var(--text-accent)" : "var(--text-muted)", background: cur ? "var(--surface-card)" : "var(--sand-100)", borderRadius: 999, padding: "5px 9px" },
+          chipStyle: { font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".06em", textTransform: "uppercase", color: cur ? "var(--text-accent)" : "var(--text-muted)", background: cur ? "var(--surface-card)" : "var(--sand-100)", borderRadius: 999, padding: "6px 10px" },
           titleStyle: { font: "var(--weight-heavy) var(--size-body)/1.3 var(--font-body)", color: "var(--text-strong)", textWrap: "pretty" },
         };
       }),
@@ -3660,7 +3660,7 @@ export class AppLogic extends Component {
     return {
       chips: chipDefs.map(([id, label]) => ({
         label, go: () => this.go(id),
-        style: { cursor: "pointer", borderRadius: "999px", padding: "8px 14px", font: "var(--weight-semibold) 13px/1 var(--font-body)", border: "1px solid " + (sc === id ? "var(--accent)" : "var(--border-hairline)"), background: sc === id ? "var(--accent)" : "var(--surface-card)", color: sc === id ? "var(--text-on-accent)" : "var(--text-muted)", transition: "background 150ms cubic-bezier(.2,.7,.3,1)" },
+        style: { cursor: "pointer", borderRadius: "999px", padding: "8px 14px", font: "var(--weight-semibold) var(--size-caption)/1 var(--font-body)", border: "1px solid " + (sc === id ? "var(--accent)" : "var(--border-hairline)"), background: sc === id ? "var(--accent)" : "var(--surface-card)", color: sc === id ? "var(--text-on-accent)" : "var(--text-muted)", transition: "background 150ms cubic-bezier(.2,.7,.3,1)" },
       })),
       ...this.introVals(s, sc),
       isAuth: sc === "auth",
@@ -3975,7 +3975,7 @@ export class AppLogic extends Component {
         const on = s.tripMode === m.id;
         return {
           ...m, pick: () => this.setState({ tripMode: m.id, tripAvoid: null, tripAvoidStations: null, tripRoute: 0, tripCollapsed: true }),
-          tileStyle: "flex:none;padding:10px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;font:var(--weight-bold) 13px/1 var(--font-body);letter-spacing:-.005em;transition:background .15s,color .15s;" +
+          tileStyle: "flex:none;padding:10px 14px;border-radius:999px;cursor:pointer;white-space:nowrap;font:var(--weight-bold) var(--size-caption)/1 var(--font-body);letter-spacing:-.005em;transition:background .15s,color .15s;" +
             (on ? "background:var(--accent);border:1px solid var(--accent);color:var(--text-on-accent);" : "background:var(--accent-soft);border:1px solid var(--border-card);color:var(--text-body);"),
         };
       }),
@@ -4106,7 +4106,7 @@ export class AppLogic extends Component {
             WebkitTapHighlightColor: "transparent",
           },
           iconStyle: { position: "relative", display: "inline-flex", transform: on ? "translateY(-1px) scale(1.12)" : "none", transition: "transform var(--dur-base) var(--ease-out)" },
-          labelStyle: { font: (on ? "var(--weight-bold)" : "var(--weight-regular)") + " 11px/1 var(--font-body)", letterSpacing: ".01em", opacity: on || hov ? 1 : 0.82, transition: "opacity var(--dur-base) var(--ease-standard)" },
+          labelStyle: { font: (on ? "var(--weight-bold)" : "var(--weight-regular)") + " var(--size-tiny)/1 var(--font-body)", letterSpacing: ".01em", opacity: on || hov ? 1 : 0.82, transition: "opacity var(--dur-base) var(--ease-standard)" },
         };
       }),
       goAccount: () => this.go("account"),
@@ -4152,13 +4152,13 @@ export class AppLogic extends Component {
       navRepTypes: rTypes.map((t) => ({
         label: t.label, sub: t.sub, pts: t.pts, icon: t.icon,
         pick: () => this.setState({ nrType: t.id, nrSev: null }),
-        style: "display:flex;flex-direction:column;gap:6px;text-align:left;padding:12px 13px;border-radius:18px;cursor:pointer;background:var(--surface-card);border:1px solid var(--border-card);font:var(--font-body)",
+        style: "display:flex;flex-direction:column;gap:6px;text-align:left;padding:12px 14px;border-radius:18px;cursor:pointer;background:var(--surface-card);border:1px solid var(--border-card);font:var(--font-body)",
       })),
       navRepTitle: s.nrType ? (rTypes.find((t) => t.id === s.nrType) || {}).label : "What is happening here",
       navRepSevQ: (SEV[s.nrType] || SEV.crowd).q,
       navRepSevs: (SEV[s.nrType] || SEV.crowd).opts.map((label, i) => ({
         label, pick: () => this.setState({ nrSev: i }),
-        style: "width:100%;text-align:left;padding:12px 14px;border-radius:999px;cursor:pointer;font:var(--weight-bold) 13px/1.3 var(--font-body);" +
+        style: "width:100%;text-align:left;padding:12px 14px;border-radius:999px;cursor:pointer;font:var(--weight-bold) var(--size-caption)/1.3 var(--font-body);" +
           (s.nrSev === i ? "background:var(--accent);border:1px solid var(--accent);color:var(--text-on-accent);" : "background:var(--accent-soft);border:1px solid var(--border-card);color:var(--text-body);"),
       })),
       navRepNoPhoto: !s.navPhoto, navRepHasPhoto: !!s.navPhoto,
@@ -4226,7 +4226,7 @@ export class AppLogic extends Component {
         ago: this.relTimeOf(group.lastAt),
         official: group.confidence.official,
         dotStyle: { flex: "none", width: 10, height: 10, borderRadius: 999, background: group.confidence.official ? CROWD.busy : CROWD.moderate, boxShadow: "0 0 0 4px color-mix(in oklch, " + (group.confidence.official ? CROWD.busy : CROWD.moderate) + " 18%, transparent)" },
-        tierStyle: "font:var(--weight-bold) 10px/1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;padding:5px 9px;border-radius:999px;white-space:nowrap;color:" +
+        tierStyle: "font:var(--weight-bold) var(--size-tiny)/1 var(--font-body);letter-spacing:.06em;text-transform:uppercase;padding:6px 10px;border-radius:999px;white-space:nowrap;color:" +
           (group.confidence.official ? "#fff" : "var(--text-muted)") + ";background:" + (group.confidence.official ? "var(--crowd-busy)" : "var(--sand-200)"),
       })),
       reportsPending: !!reportsState.pending,

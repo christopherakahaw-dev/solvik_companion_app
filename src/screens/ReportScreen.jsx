@@ -15,12 +15,12 @@ export function ReportScreen({ v }) {
             <div style={{ position: "relative", flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                 <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--crowd-busy)", animation: "sv-ping 1.8s var(--ease-standard) infinite" }} />
-                <span style={{ font: "var(--weight-bold) 11px/1 var(--font-body)", letterSpacing: ".07em", textTransform: "uppercase", opacity: 0.8 }}>{v.locEyebrow}</span>
+                <span style={{ font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".07em", textTransform: "uppercase", opacity: 0.8 }}>{v.locEyebrow}</span>
               </div>
               <div style={{ font: "var(--weight-heavy) 18px/1.25 var(--font-display)", letterSpacing: "-.02em", marginTop: 7 }}>{v.locStopName}</div>
               <div style={{ font: "var(--type-caption)", opacity: 0.72, marginTop: 4, textWrap: "pretty" }}>{v.locDetail}</div>
             </div>
-            <button onClick={v.locRecheck} style={{ position: "relative", flex: "none", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 999, background: "rgba(255,255,255,.14)", border: "none", color: "var(--text-on-dark)", cursor: "pointer", font: "var(--weight-bold) 12px/1 var(--font-body)" }}>
+            <button onClick={v.locRecheck} style={{ position: "relative", flex: "none", alignSelf: "flex-start", display: "flex", alignItems: "center", gap: 6, padding: "8px 12px", borderRadius: 999, background: "rgba(255,255,255,.14)", border: "none", color: "var(--text-on-dark)", cursor: "pointer", font: "var(--weight-bold) var(--size-micro)/1 var(--font-body)" }}>
               <Icon name="crosshair" size={14} />
               {v.locRecheckLabel}
             </button>
@@ -54,7 +54,7 @@ export function ReportScreen({ v }) {
             )}
             <div style={{ display: "flex", flexDirection: "column", gap: 2, marginTop: 10 }}>
               {v.recentReports.map((r) => (
-                <div key={r.key} style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "11px 0", borderTop: "1px solid var(--border-card)" }}>
+                <div key={r.key} style={{ display: "flex", alignItems: "flex-start", gap: 11, padding: "12px 0", borderTop: "1px solid var(--border-card)" }}>
                   <div style={{ ...r.dotStyle, marginTop: 5 }} />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ font: "var(--type-body)", color: "var(--text-body)", textWrap: "pretty" }}>{r.text}</div>
@@ -139,7 +139,7 @@ export function ReportScreen({ v }) {
           )}
           {/* Which checks ran, and which one turned it away. */}
           {v.reportChecks.length > 0 && (
-            <div style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: "13px 15px", borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
+            <div style={{ width: "100%", maxWidth: 340, display: "flex", flexDirection: "column", gap: 6, textAlign: "left", padding: "14px 16px", borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
               {v.reportChecks.map((c) => (
                 <div key={c.id} style={{ display: "flex", gap: 9, alignItems: "flex-start" }}>
                   <span style={{ flex: "none", color: c.ok ? "var(--crowd-light)" : "var(--status-fault)", marginTop: 1 }}>

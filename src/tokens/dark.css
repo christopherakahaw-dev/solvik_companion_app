@@ -70,7 +70,7 @@
 /* The map tiles are light images; invert them and rotate the hue back, so
    water stays blue and parks stay green, then soften the contrast. Routes,
    markers and crowding circles live in other panes and keep their colours. */
-:root[data-theme="dark"] .leaflet-tile-pane {
+:root[data-theme="dark"] .sv-map-canvas:not(.is-native-dark) .leaflet-tile-pane {
   filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.75);
 }
 :root[data-theme="dark"] .leaflet-container {

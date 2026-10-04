@@ -7,7 +7,7 @@
    the whole scale instead of overriding sizes one at a time. Mdm Lim's brief
    asks for exactly this: "must be usable in large text". */
 --type-scale:1;
---size-display:calc(38px * var(--type-scale));--size-title:calc(30px * var(--type-scale));--size-heading:calc(22px * var(--type-scale));--size-subheading:calc(19px * var(--type-scale));--size-body:calc(17px * var(--type-scale));--size-body-sm:calc(15px * var(--type-scale));--size-caption:calc(13px * var(--type-scale));--size-micro:calc(12px * var(--type-scale));--size-clock:calc(30px * var(--type-scale));--size-count:calc(36px * var(--type-scale));
+--size-display:calc(38px * var(--type-scale));--size-title:calc(30px * var(--type-scale));--size-heading:calc(22px * var(--type-scale));--size-subheading:calc(19px * var(--type-scale));--size-body:calc(17px * var(--type-scale));--size-body-sm:calc(15px * var(--type-scale));--size-caption:calc(13px * var(--type-scale));--size-tiny:calc(11px * var(--type-scale));--size-micro:calc(12px * var(--type-scale));--size-small:calc(14px * var(--type-scale));--size-lead:calc(16px * var(--type-scale));--size-clock:calc(30px * var(--type-scale));--size-count:calc(36px * var(--type-scale));
 
 --leading-tight:1.04;--leading-snug:1.18;--leading-normal:1.35;--leading-relaxed:1.5;
 

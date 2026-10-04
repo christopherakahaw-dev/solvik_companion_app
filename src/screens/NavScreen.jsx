@@ -42,7 +42,7 @@ export function NavScreen({ v }) {
         <div className="sv-nav-meta-row" style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <IconButton icon="x" label="End trip" tone="plain" size="md" onClick={v.endTrip} />
           <SolvikBrand compact className="sv-nav-brand" />
-          <div style={{ font: "var(--weight-bold) 12px/1 var(--font-body)", color: "var(--text-strong)", background: "var(--surface-card)", borderRadius: 999, padding: "9px 15px", boxShadow: "var(--shadow-nav)", whiteSpace: "nowrap", flex: "none" }}>{v.navStepLabel}</div>
+          <div style={{ font: "var(--weight-bold) var(--size-micro)/1 var(--font-body)", color: "var(--text-strong)", background: "var(--surface-card)", borderRadius: 999, padding: "10px 16px", boxShadow: "var(--shadow-nav)", whiteSpace: "nowrap", flex: "none" }}>{v.navStepLabel}</div>
           {/* One tap, always in reach: the sheet's own actions only show once it is expanded. */}
           {v.navCanShare && (
             <IconButton icon="share-2" label="Share ETA" tone="plain" size="md" onClick={v.navShare} style={{ marginLeft: "auto", flex: "none" }} />
@@ -54,7 +54,7 @@ export function NavScreen({ v }) {
             className="sv-nav-track-note"
             style={{
               alignSelf: "flex-start",
-              font: "var(--weight-medium) 11px/1.2 var(--font-body)",
+              font: "var(--weight-medium) var(--size-tiny)/1.2 var(--font-body)",
               color: v.navTrackTone === "warn" ? "var(--crowd-busy)" : "var(--text-muted)",
               background: "var(--surface-card)", borderRadius: 999, padding: "8px 12px",
               boxShadow: "var(--shadow-nav)", textWrap: "pretty",
@@ -206,7 +206,7 @@ export function NavScreen({ v }) {
       {v.navRepOpen && (
         <div className="sv-nav-modal-layer" style={{ position: "absolute", inset: 0, zIndex: 40, background: "rgba(32,30,29,.38)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
           <div onClick={v.closeNavRep} style={{ flex: 1 }} />
-          <section className="sv-nav-modal-sheet" style={{ flex: "none", maxHeight: "82%", display: "flex", flexDirection: "column", background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)", padding: "0 18px 18px", animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
+          <section className="sv-nav-modal-sheet" style={{ flex: "none", maxHeight: "82%", display: "flex", flexDirection: "column", background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)", padding: "0 18px 18px", animation: "sv-rise 320ms var(--ease-out) both" }}>
             <div style={{ flex: "none", padding: "12px 0 8px", display: "flex", justifyContent: "center" }}>
               <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--sand-400)" }} />
             </div>
@@ -256,7 +256,7 @@ export function NavScreen({ v }) {
                       </div>
                     )}
                     {v.navRepNoPhoto && !v.navCameraOpen && (
-                      <button onClick={v.openNavCamera} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, marginTop: 9, padding: "14px 15px", borderRadius: "var(--radius-card)", border: "1px dashed var(--sand-400)", background: "var(--accent-soft)", cursor: "pointer" }}>
+                      <button onClick={v.openNavCamera} style={{ width: "100%", textAlign: "left", display: "flex", alignItems: "center", gap: 12, marginTop: 9, padding: "14px 16px", borderRadius: "var(--radius-card)", border: "1px dashed var(--sand-400)", background: "var(--accent-soft)", cursor: "pointer" }}>
                         <span style={{ flex: "none", width: 40, height: 40, borderRadius: 999, background: "var(--accent)", color: "var(--text-on-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                           <Icon name="camera" size={19} />
                         </span>
