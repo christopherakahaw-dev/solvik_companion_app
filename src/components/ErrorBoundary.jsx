@@ -24,7 +24,7 @@ export class ErrorBoundary extends Component {
           <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 8, textWrap: "pretty" }}>
             This screen hit an error. The rest of the app is fine — reload to carry on.
           </div>
-          <pre style={{ font: "var(--weight-regular) 11px/1.4 var(--font-body)", color: "var(--text-muted)", background: "var(--sand-100)", borderRadius: "var(--radius-sm,10px)", padding: 10, marginTop: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+          <pre style={{ font: "var(--weight-regular) var(--size-tiny)/1.4 var(--font-body)", color: "var(--text-muted)", background: "var(--sand-100)", borderRadius: "var(--radius-sm,10px)", padding: 10, marginTop: 12, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
             {String(this.state.error && this.state.error.message ? this.state.error.message : this.state.error)}
           </pre>
           <button

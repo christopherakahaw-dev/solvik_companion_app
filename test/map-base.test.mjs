@@ -61,3 +61,15 @@ test("whitespace around a key is trimmed rather than sent", () => {
   assert.equal(mapTilerKey({}), "");
   assert.equal(mapTilerKey(undefined), "");
 });
+
+test("dark mode gets OneMap's own dark tiles, not an inverted light map", async () => {
+  const { ONEMAP_STYLE } = await import("../src/lib/mapBase.js");
+  const [dark] = baseLayerOrder("", { dark: true });
+  assert.match(dark.url, new RegExp(`/tiles/${ONEMAP_STYLE.dark}/`));
+  assert.equal(dark.nativeDark, true);
+  const [light] = baseLayerOrder("");
+  assert.equal(light.url, ONEMAP_TILE_URL);
+  assert.equal(light.nativeDark, false);
+  // MapTiler stays a light base either way, so it keeps the CSS inversion.
+  assert.equal(baseLayerOrder("abc123", { dark: true })[0].nativeDark, false);
+});

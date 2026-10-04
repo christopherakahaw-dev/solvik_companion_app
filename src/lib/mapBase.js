@@ -11,7 +11,12 @@
 // than an OSM rendering, so the required base is no longer OSM. The key is the
 // difference between meeting that requirement and not.
 
-export const ONEMAP_TILE_URL = "https://www.onemap.gov.sg/maps/tiles/Default/{z}/{x}/{y}.png";
+// OneMap publishes several renderings of the same map. Night is a real dark
+// map, so dark mode no longer has to invert a light one. (Grey was tried for
+// light mode: it turns water and parks grey too, which costs orientation.)
+export const onemapTileUrl = (style) => `https://www.onemap.gov.sg/maps/tiles/${style}/{z}/{x}/{y}.png`;
+export const ONEMAP_STYLE = { light: "Default", dark: "Night" };
+export const ONEMAP_TILE_URL = onemapTileUrl(ONEMAP_STYLE.light);
 
 export const osmTileUrl = (key) =>
   `https://api.maptiler.com/maps/streets-v2/{z}/{x}/{y}.png?key=${encodeURIComponent(key)}`;
@@ -45,16 +50,21 @@ export function mapTilerKey(env) {
 //
 // A missing key costs OSM as the base, which is worth saying out loud. It must
 // never cost a working map.
-export function baseLayerOrder(key) {
+//
+// `nativeDark` marks a base drawn dark by its publisher. Only a light base
+// gets the CSS inversion in dark mode.
+export function baseLayerOrder(key, { dark = false } = {}) {
   const onemap = {
     name: "onemap",
-    url: ONEMAP_TILE_URL,
+    url: onemapTileUrl(dark ? ONEMAP_STYLE.dark : ONEMAP_STYLE.light),
+    nativeDark: dark,
     options: { minZoom: 11, maxZoom: 19, attribution: ONEMAP_ATTRIBUTION },
   };
   if (!key) return [onemap];
   const osm = {
     name: "osm",
     url: osmTileUrl(key),
+    nativeDark: false,
     options: { maxZoom: 19, attribution: OSM_ATTRIBUTION },
   };
   return [osm, onemap];

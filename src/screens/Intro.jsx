@@ -98,7 +98,7 @@ export function Intro({ v }) {
 
       <div style={{ flex: 1, minHeight: 0, overflowY: "auto", paddingTop: 26 }}>
         {v.introS0 && (
-          <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
+          <div style={{ animation: "sv-rise 320ms var(--ease-out) both" }}>
             <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Choose your style</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Pick how you like to travel. Solvik uses it to rank your routes and to decide which disruptions are worth telling you about.</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 9, marginTop: 22 }}>
@@ -112,7 +112,7 @@ export function Intro({ v }) {
                       <span style={{ font: "var(--type-body-strong)" }}>{r.label}</span>
                     </span>
                     <span style={styleText(r.subStyle)}>{r.sub}</span>
-                    {r.route ? <span style={{ display: "block", font: "var(--weight-bold) 11.5px/1.3 var(--font-body)", color: "var(--text-accent)", marginTop: 7 }}>{r.route}</span> : null}
+                    {r.route ? <span style={{ display: "block", font: "var(--weight-bold) var(--size-micro)/1.3 var(--font-body)", color: "var(--text-accent)", marginTop: 7 }}>{r.route}</span> : null}
                     {r.schedule ? <span style={{ display: "block", font: "var(--type-caption)", color: "var(--text-muted)", marginTop: r.route ? 2 : 6 }}>{r.schedule}</span> : null}
                     {r.on && (
                       <span className="sv-intro-preview" ref={revealPreview}>
@@ -136,7 +136,7 @@ export function Intro({ v }) {
         )}
 
         {v.introS1 && v.introJourney?.isFixed && (
-          <div style={{ animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
+          <div style={{ animation: "sv-rise 320ms var(--ease-out) both" }}>
             <div style={{ font: "var(--weight-heavy) 30px/1.15 var(--font-display)", letterSpacing: "-.028em", color: "var(--text-strong)", textWrap: "pretty" }}>Your daily journey</div>
             <div style={{ font: "var(--type-body)", color: "var(--text-muted)", marginTop: 10, textWrap: "pretty" }}>Set where you start and where you need to be. Solvik plans it right away and watches it for disruptions.</div>
             {v.introJourney && <div style={{ marginTop: 22, padding: 18, borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid var(--border-card)", boxShadow: "var(--shadow-card)" }}>
@@ -148,7 +148,7 @@ export function Intro({ v }) {
                     <button
                       type="button"
                       onClick={() => setEditingFrom(!editingFrom)}
-                      style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                      style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) var(--size-micro)/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
                     >
                       {editingFrom ? "Done" : "Change"}
                     </button>
@@ -188,7 +188,7 @@ export function Intro({ v }) {
                     <button
                       type="button"
                       onClick={() => setEditingTo(!editingTo)}
-                      style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) 11.5px/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
+                      style={{ background: "none", border: "none", color: "var(--accent)", font: "var(--weight-semibold) var(--size-micro)/1 var(--font-body)", cursor: "pointer", padding: "0 4px", textDecoration: "underline" }}
                     >
                       {editingTo ? "Done" : "Change"}
                     </button>

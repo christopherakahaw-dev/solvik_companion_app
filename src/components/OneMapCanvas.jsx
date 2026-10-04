@@ -160,7 +160,8 @@ export function OneMapCanvas({
       wheelPxPerZoomLevel: 90,
     });
     L.control.attribution({ position: "bottomright", prefix: false }).addTo(map);
-    const layers = baseLayerOrder(MAPTILER_KEY);
+    const pageIsDark = () => typeof document !== "undefined" && document.documentElement.dataset.theme === "dark";
+    let layers = baseLayerOrder(MAPTILER_KEY, { dark: pageIsDark() });
     let baseIndex = 0;
     let base = null;
     // Walk the list on failure. The list only ever holds bases that *can*
@@ -170,6 +171,8 @@ export function OneMapCanvas({
       if (base) map.removeLayer(base);
       const spec = layers[index];
       base = L.tileLayer(spec.url, spec.options);
+      // A base drawn dark by its publisher skips the dark-mode inversion.
+      ref.current?.classList.toggle("is-native-dark", Boolean(spec.nativeDark));
       base.on("tileerror", () => {
         if (baseIndex !== index || index + 1 >= layers.length) return;
         baseIndex = index + 1;
@@ -178,6 +181,18 @@ export function OneMapCanvas({
       base.addTo(map);
     };
     showBase(0);
+    // Follow the theme: switching to dark swaps in the dark tiles rather than
+    // inverting light ones.
+    const themeWatch = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(() => {
+          const next = baseLayerOrder(MAPTILER_KEY, { dark: pageIsDark() });
+          if (next[0].url === layers[0].url) return;
+          layers = next;
+          baseIndex = 0;
+          showBase(0);
+        })
+      : null;
+    themeWatch?.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
     map.on("click", (e) => {
       if (clickRef.current) clickRef.current([e.latlng.lat, e.latlng.lng]);
     });
@@ -265,6 +280,7 @@ export function OneMapCanvas({
       if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
       cancelAnimationFrame(resizeFrame);
       if (ro) ro.disconnect();
+      themeWatch?.disconnect();
       // Finish anything in flight first: a pan or zoom animation still running
       // when the panes go away throws from its own callback afterwards.
       try {
@@ -650,7 +666,7 @@ export function OneMapCanvas({
 
   return (
     <div style={{ position: "relative", height, background: "var(--map-land)", overflow: "hidden", ...style }}>
-      <div ref={ref} style={{ position: "absolute", inset: 0, filter: "saturate(.72) sepia(.12) brightness(1.03) contrast(.96)" }} />
+      <div ref={ref} className="sv-map-canvas" style={{ position: "absolute", inset: 0 }} />
       {interactive && showRecenterControl && isShifted && isLL(marker) && (
         <button
           type="button"

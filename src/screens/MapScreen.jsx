@@ -28,7 +28,7 @@ function DurationText({ mins }) {
   const parts = journeyDuration(mins).split(" ");
   return parts.map((part, i) => (
     <span key={i}>
-      {/^\d+$/.test(part) ? part : <small style={{ font: "var(--weight-bold) 15px/1 var(--font-body)", letterSpacing: 0 }}>{part}</small>}
+      {/^\d+$/.test(part) ? part : <small style={{ font: "var(--weight-bold) var(--size-body-sm)/1 var(--font-body)", letterSpacing: 0 }}>{part}</small>}
       {i < parts.length - 1 ? " " : null}
     </span>
   ));
@@ -548,7 +548,7 @@ export function MapScreen({ v }) {
               </div>
               <div className="sv-route-travel-nav">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <div style={{ font: "var(--weight-heavy) 11px/1 var(--font-body)", letterSpacing: ".09em", textTransform: "uppercase", color: "var(--text-muted)" }}>Travel by</div>
+                <div style={{ font: "var(--weight-heavy) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".09em", textTransform: "uppercase", color: "var(--text-muted)" }}>Travel by</div>
                 <div style={{ flex: 1, height: 1, background: "var(--border-card)" }} />
               </div>
               <div className="sv-route-mode-primary" role="group" aria-label="Travel mode">
@@ -562,14 +562,14 @@ export function MapScreen({ v }) {
               </div>
               <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", textWrap: "pretty" }}>{v.tripModeBlurb}</div>
               {v.routeAssistantLabel && (
-                <div aria-live="polite" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-accent)", font: "var(--weight-bold) 10.5px/1.3 var(--font-body)", letterSpacing: ".025em", textWrap: "pretty" }}>
+                <div aria-live="polite" style={{ display: "flex", alignItems: "center", gap: 6, color: "var(--text-accent)", font: "var(--weight-bold) var(--size-tiny)/1.3 var(--font-body)", letterSpacing: ".025em", textWrap: "pretty" }}>
                   <Icon name={v.tripsPending || /comparing/i.test(v.routeAssistantLabel) ? "loader-2" : "sparkles"} size={13} style={/comparing/i.test(v.routeAssistantLabel) ? { animation: "sv-spin 900ms linear infinite" } : undefined} />
                   {v.routeAssistantLabel}
                 </div>
               )}
               {v.routeCrowdLegend.length > 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "9px 10px", borderRadius: 14, background: "var(--sand-100)" }}>
-                  <span style={{ font: "var(--weight-bold) 10.5px/1 var(--font-body)", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".05em" }}>Crowding along route</span>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "10px 10px", borderRadius: 14, background: "var(--sand-100)" }}>
+                  <span style={{ font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: ".05em" }}>Crowding along route</span>
                   {v.routeCrowdLegend.map((item) => (
                     <span key={item.level} style={{ display: "inline-flex", alignItems: "center", gap: 5, font: "var(--type-caption)", color: "var(--text-body)" }}>
                       <i style={{ width: 8, height: 8, borderRadius: 999, background: item.color }} />{item.label}
@@ -578,13 +578,13 @@ export function MapScreen({ v }) {
                 </div>
               )}
               {v.recordedNotice && (
-                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 11px", borderRadius: 999, background: "var(--sand-100,rgba(32,30,29,.05))", font: "var(--weight-semibold) 11.5px/1.2 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 12px", borderRadius: 999, background: "var(--sand-100,rgba(32,30,29,.05))", font: "var(--weight-semibold) var(--size-micro)/1.2 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
                   <Icon name="circle-dot-dashed" size={14} />
                   {v.recordedNotice}
                 </div>
               )}
               {v.savedNotice && (
-                <div role="status" style={{ display: "flex", alignItems: "center", gap: 7, padding: "9px 11px", borderRadius: 999, background: "var(--sand-100,rgba(32,30,29,.05))", font: "var(--weight-semibold) 11.5px/1.2 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
+                <div role="status" style={{ display: "flex", alignItems: "center", gap: 7, padding: "10px 12px", borderRadius: 999, background: "var(--sand-100,rgba(32,30,29,.05))", font: "var(--weight-semibold) var(--size-micro)/1.2 var(--font-body)", color: "var(--text-muted)", textWrap: "pretty" }}>
                   <Icon name="wifi-off" size={14} />
                   {v.savedNotice}
                 </div>
@@ -635,7 +635,7 @@ export function MapScreen({ v }) {
                 </div>
               )}
               {v.tripsAvoiding && (
-                <div style={{ font: "var(--weight-semibold) 11px/1 var(--font-body)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-accent)", padding: "2px 0 4px" }}>
+                <div style={{ font: "var(--weight-semibold) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-accent)", padding: "2px 0 4px" }}>
                   {v.tripsAvoiding}
                 </div>
               )}
@@ -737,7 +737,7 @@ export function MapScreen({ v }) {
                 </Card>
               ))}
             </div>
-            <div style={{ flex: "none", padding: "8px 0 14px", font: "var(--weight-regular) 10px/1.3 var(--font-body)", color: "var(--text-muted)", textAlign: "center", background: "var(--surface-card)" }}>
+            <div style={{ flex: "none", padding: "8px 0 14px", font: "var(--weight-regular) var(--size-tiny)/1.3 var(--font-body)", color: "var(--text-muted)", textAlign: "center", background: "var(--surface-card)" }}>
               Routes from OneMap · Singapore Land Authority
             </div>
           </section>
@@ -745,11 +745,11 @@ export function MapScreen({ v }) {
       )}
 
       {v.fcPinned && (
-        <div className="sv-map-card-overlay" data-covers-map style={{ position: "absolute", left: 14, right: 14, bottom: 88, zIndex: 16, padding: "14px 15px 15px", borderRadius: 22, background: "var(--surface-card)", boxShadow: "var(--shadow-sheet)", animation: "sv-rise 300ms cubic-bezier(.16,1,.3,1) both" }}>
+        <div className="sv-map-card-overlay" data-covers-map style={{ position: "absolute", left: 14, right: 14, bottom: 88, zIndex: 16, padding: "14px 16px 16px", borderRadius: 22, background: "var(--surface-card)", boxShadow: "var(--shadow-sheet)", animation: "sv-rise 300ms var(--ease-out) both" }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
             <span style={styleText(v.fcPinned.dotStyle)} />
             <div style={{ minWidth: 0, flex: 1 }}>
-              <div style={{ font: "var(--weight-heavy) 16px/1.2 var(--font-body)", letterSpacing: "-.012em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.fcPinned.name}</div>
+              <div style={{ font: "var(--weight-heavy) var(--size-lead)/1.2 var(--font-body)", letterSpacing: "-.012em", color: "var(--text-strong)", textWrap: "pretty" }}>{v.fcPinned.name}</div>
               <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 4, textWrap: "pretty" }}>{v.fcPinned.detail}</div>
             </div>
             <div style={{ flex: "none", textAlign: "right" }}>
@@ -782,7 +782,7 @@ export function MapScreen({ v }) {
       {v.fcAlertsOpen && (
         <div className="sv-map-modal-layer" style={{ position: "absolute", inset: 0, zIndex: 24, background: "rgba(32,30,29,.34)", display: "flex", flexDirection: "column", justifyContent: "flex-end" }}>
           <div onClick={v.fcToggleAlerts} style={{ flex: 1 }} />
-          <section className="sv-map-modal-sheet" style={{ flex: "none", maxHeight: "76%", display: "flex", flexDirection: "column", background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)", padding: "0 16px 18px", animation: "sv-rise 320ms cubic-bezier(.16,1,.3,1) both" }}>
+          <section className="sv-map-modal-sheet" style={{ flex: "none", maxHeight: "76%", display: "flex", flexDirection: "column", background: "var(--surface-card)", borderRadius: "var(--radius-sheet) var(--radius-sheet) 0 0", boxShadow: "var(--shadow-sheet)", padding: "0 16px 18px", animation: "sv-rise 320ms var(--ease-out) both" }}>
             <div style={{ flex: "none", padding: "12px 0 6px", display: "flex", justifyContent: "center" }}>
               <div style={{ width: 42, height: 4, borderRadius: 999, background: "var(--border-strong)" }} />
             </div>
@@ -839,20 +839,20 @@ export function MapScreen({ v }) {
                     <span style={styleText(f.readDotStyle)} />
                     <span style={{ marginLeft: "auto", font: "var(--type-caption)", color: "var(--text-muted)", fontVariantNumeric: "tabular-nums" }}>{f.time}</span>
                   </div>
-                  <div style={{ font: "var(--weight-bold) 14.5px/1.3 var(--font-body)", color: "var(--text-strong)", marginTop: 9, textWrap: "pretty" }}>{f.title}</div>
+                  <div style={{ font: "var(--weight-bold) var(--size-small)/1.3 var(--font-body)", color: "var(--text-strong)", marginTop: 9, textWrap: "pretty" }}>{f.title}</div>
                   <div style={{ font: "var(--type-caption)", color: "var(--text-muted)", marginTop: 5, textWrap: "pretty" }}>{f.detail}</div>
                   {f.placeNote && (
                     <div style={{ font: "var(--type-caption)", color: "var(--text-accent)", marginTop: 6, textWrap: "pretty" }}>{f.placeNote}</div>
                   )}
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 9 }}>
-                    <span style={{ font: "var(--weight-bold) 11px/1 var(--font-body)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-muted)" }}>{f.readLabel}</span>
+                    <span style={{ font: "var(--weight-bold) var(--size-tiny)/1 var(--font-body)", letterSpacing: ".05em", textTransform: "uppercase", color: "var(--text-muted)" }}>{f.readLabel}</span>
                     {f.canReroute && (
                       <span
                         role="button"
                         tabIndex={0}
                         onClick={(e) => { e.stopPropagation(); f.reroute(); }}
                         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); f.reroute(); } }}
-                        style={{ marginLeft: "auto", cursor: "pointer", font: "var(--weight-bold) 11.5px/1 var(--font-body)", color: "var(--text-accent)", padding: "6px 10px", borderRadius: 999, background: "var(--accent-soft)", whiteSpace: "nowrap" }}
+                        style={{ marginLeft: "auto", cursor: "pointer", font: "var(--weight-bold) var(--size-micro)/1 var(--font-body)", color: "var(--text-accent)", padding: "6px 10px", borderRadius: 999, background: "var(--accent-soft)", whiteSpace: "nowrap" }}
                       >
                         Find another way
                       </span>
@@ -866,7 +866,7 @@ export function MapScreen({ v }) {
       )}
 
       {v.hasPin && (
-        <div className="sv-map-card-overlay" data-covers-map style={{ position: "absolute", left: 14, right: 14, bottom: 88, background: "var(--surface-card)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-sheet)", padding: "14px 15px", display: "flex", flexDirection: "column", gap: 11 }}>
+        <div className="sv-map-card-overlay" data-covers-map style={{ position: "absolute", left: 14, right: 14, bottom: 88, background: "var(--surface-card)", borderRadius: "var(--radius-card)", boxShadow: "var(--shadow-sheet)", padding: "14px 16px", display: "flex", flexDirection: "column", gap: 11 }}>
           <div style={{ display: "flex", alignItems: "flex-start", gap: 11 }}>
             <div style={{ flex: "none", width: 34, height: 34, borderRadius: 999, background: "var(--accent-soft)", color: "var(--text-accent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Icon name="map-pin" size={18} />
