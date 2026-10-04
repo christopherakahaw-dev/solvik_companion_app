@@ -1,8 +1,12 @@
+import { useId, useState } from "react";
 import { Icon, IconButton, Button, SectionLabel, SearchField, Tag } from "../design-system";
 import { styleText } from "../lib/styleText";
 import { PlacePicker } from "../components/PlacePicker";
 
 export function PlanScreen({ v }) {
+  const headsUp = [v.fgHas, v.wxHas, v.pwHas].filter(Boolean).length;
+  const urgent = v.fgTone === "busy" || v.pwBlocking;
+  const persona = v.personaOptions.find((option) => option.on);
   return (
     <div className="sv-plan-screen" style={{ display: "flex", flexDirection: "column", gap: 14, paddingTop: 14, paddingBottom: 104 }}>
       <div className="sv-plan-intro" style={{ padding: "0 4px" }}>
@@ -20,6 +24,51 @@ export function PlanScreen({ v }) {
           </div>
         )}
       </div>
+
+      {v.planHasNext && (
+        <article className="sv-next-journey" aria-label={`Next commute from ${v.planNextFrom} to ${v.planNextTo}`}>
+          <div className="sv-next-journey-glow" aria-hidden="true" />
+          <header className="sv-next-journey-head">
+            <span className="sv-next-journey-kicker"><Icon name="sparkles" size={14} /> Next commute</span>
+            <span className="sv-next-journey-countdown">{v.planNextIn}</span>
+          </header>
+
+          <div className="sv-next-journey-main">
+            <div className="sv-next-route">
+              <div className="sv-next-route-stop">
+                <span className="sv-next-route-dot is-origin"><Icon name="circle-dot" size={15} /></span>
+                <span><small>From</small><strong>{v.planNextFrom}</strong></span>
+              </div>
+              <span className="sv-next-route-line" aria-hidden="true" />
+              <div className="sv-next-route-stop">
+                <span className="sv-next-route-dot is-destination"><Icon name="map-pin" size={15} /></span>
+                <span><small>To</small><strong>{v.planNextTo}</strong></span>
+              </div>
+            </div>
+            <div className="sv-next-departure">
+              <small>Leave at</small>
+              <time>{v.planNextLeave}</time>
+            </div>
+          </div>
+
+          <div className="sv-next-journey-note"><Icon name="clock" size={15} /> <span>{v.planNextNote}</span></div>
+          <footer className="sv-next-journey-actions">
+            <Button size="md" iconRight="arrow-right" onClick={v.startNext}>
+              See routes
+            </Button>
+            <button className="sv-next-alert" onClick={v.watchNext}>
+              <Icon name="bell" size={16} />
+              {v.watchNextLabel}
+            </button>
+            {v.planNextCrowd && (
+              <div className="sv-next-crowd">
+                <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--crowd-" + (v.planNextCrowdLevel || "light") + ")" }} />
+                {v.planNextCrowd}
+              </div>
+            )}
+          </footer>
+        </article>
+      )}
 
       {v.routineAlert && (
         <div
@@ -118,53 +167,19 @@ export function PlanScreen({ v }) {
         </div>
       )}
 
-      {v.planHasNext && (
-        <article className="sv-next-journey" aria-label={`Next commute from ${v.planNextFrom} to ${v.planNextTo}`}>
-          <div className="sv-next-journey-glow" aria-hidden="true" />
-          <header className="sv-next-journey-head">
-            <span className="sv-next-journey-kicker"><Icon name="sparkles" size={14} /> Next commute</span>
-            <span className="sv-next-journey-countdown">{v.planNextIn}</span>
-          </header>
-
-          <div className="sv-next-journey-main">
-            <div className="sv-next-route">
-              <div className="sv-next-route-stop">
-                <span className="sv-next-route-dot is-origin"><Icon name="circle-dot" size={15} /></span>
-                <span><small>From</small><strong>{v.planNextFrom}</strong></span>
-              </div>
-              <span className="sv-next-route-line" aria-hidden="true" />
-              <div className="sv-next-route-stop">
-                <span className="sv-next-route-dot is-destination"><Icon name="map-pin" size={15} /></span>
-                <span><small>To</small><strong>{v.planNextTo}</strong></span>
-              </div>
-            </div>
-            <div className="sv-next-departure">
-              <small>Leave at</small>
-              <time>{v.planNextLeave}</time>
-            </div>
-          </div>
-
-          <div className="sv-next-journey-note"><Icon name="clock" size={15} /> <span>{v.planNextNote}</span></div>
-          <footer className="sv-next-journey-actions">
-            <Button size="md" iconRight="arrow-right" onClick={v.startNext}>
-              See routes
-            </Button>
-            <button className="sv-next-alert" onClick={v.watchNext}>
-              <Icon name="bell" size={16} />
-              {v.watchNextLabel}
-            </button>
-            {v.planNextCrowd && (
-              <div className="sv-next-crowd">
-                <span style={{ width: 7, height: 7, borderRadius: 999, background: "var(--crowd-" + (v.planNextCrowdLevel || "light") + ")" }} />
-                {v.planNextCrowd}
-              </div>
-            )}
-          </footer>
-        </article>
-      )}
-
+      {/* One card for everything that might change the trip — the network,
+          the weather, planned works — instead of three stacked cards that
+          each claimed the same attention. */}
+      {headsUp > 0 && (
+      <section className="sv-plan-headsup" aria-label="Heads-up for your trip">
+        <header className="sv-plan-headsup-head">
+          <SectionLabel>Heads-up</SectionLabel>
+          <span className={"sv-plan-headsup-count" + (urgent ? " is-urgent" : "")}>
+            {headsUp === 1 ? "1 thing on your way" : `${headsUp} things on your way`}
+          </span>
+        </header>
       {v.fgHas && (
-        <div className="sv-plan-forecast" style={{ borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid " + (v.fgTone === "busy" ? "var(--crowd-busy)" : v.fgTone === "moderate" ? "var(--crowd-moderate)" : "var(--border-card)"), padding: "16px 16px 15px", boxShadow: "var(--shadow-card)" }}>
+        <div className={"sv-plan-forecast sv-headsup-item is-" + (v.fgTone || "calm")}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 26, height: 26, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", color: v.fgTone === "busy" ? "var(--crowd-busy)" : v.fgTone === "moderate" ? "var(--crowd-moderate)" : "var(--text-accent)" }}>
               <Icon name="chart-no-axes-column-increasing" size={15} />
@@ -229,7 +244,7 @@ export function PlanScreen({ v }) {
       )}
 
       {v.wxHas && (
-        <div className="sv-plan-weather" style={{ borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid " + (v.wxWet ? "var(--crowd-moderate)" : "var(--border-card)"), padding: "16px 16px 15px", boxShadow: "var(--shadow-card)" }}>
+        <div className={"sv-plan-weather sv-headsup-item" + (v.wxWet ? " is-moderate" : "")}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 26, height: 26, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: "var(--accent-soft)", color: v.wxWet ? "var(--crowd-moderate)" : "var(--text-accent)" }}>
               <Icon name={v.wxWet ? "cloud-rain" : "sun"} size={15} />
@@ -255,7 +270,7 @@ export function PlanScreen({ v }) {
       )}
 
       {v.pwHas && (
-        <div className="sv-plan-work" style={{ borderRadius: "var(--radius-card)", background: "var(--surface-card)", border: "1px solid " + (v.pwBlocking ? "var(--crowd-busy)" : "var(--border-card)"), padding: "16px 16px 15px", boxShadow: "var(--shadow-card)" }}>
+        <div className={"sv-plan-work sv-headsup-item" + (v.pwBlocking ? " is-busy" : "")}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <span style={{ width: 26, height: 26, borderRadius: 999, display: "flex", alignItems: "center", justifyContent: "center", background: v.pwBlocking ? "var(--crowd-busy)" : "var(--accent-soft)", color: v.pwBlocking ? "#fff" : "var(--text-accent)" }}>
               <Icon name="construction" size={15} />
@@ -284,6 +299,8 @@ export function PlanScreen({ v }) {
             </div>
           )}
         </div>
+      )}
+      </section>
       )}
 
       <div className="sv-plan-places">
@@ -366,11 +383,7 @@ export function PlanScreen({ v }) {
       {/* Named on screen, because the brief scores whether a submission says who
           it is for — and because the same disruption genuinely means different
           things to each of these three. */}
-      <div className="sv-plan-persona">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 4px 9px" }}>
-          <SectionLabel>Tailored for you</SectionLabel>
-        </div>
-        <div style={{ padding: "15px 16px", borderRadius: 20, background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
+      <Fold className="sv-plan-persona" icon="user-round" label="Tailored for you" value={persona?.name}>
           <div style={{ font: "var(--type-body)", color: "var(--text-strong)", textWrap: "pretty" }}>{v.personaBlurb}</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 12 }}>
             {v.personaOptions.map((option) => (
@@ -392,15 +405,11 @@ export function PlanScreen({ v }) {
               </button>
             ))}
           </div>
-        </div>
-      </div>
+      </Fold>
 
-      <div className="sv-plan-memory">
-        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 4px 9px" }}>
-          <SectionLabel>What Solvik remembers</SectionLabel>
-        </div>
-        <div style={{ padding: "15px 16px", borderRadius: 20, background: "var(--surface-card)", border: "1px solid var(--border-card)" }}>
-          <div style={{ font: "var(--type-body)", color: "var(--text-strong)", textWrap: "pretty" }}>{v.memorySummary}</div>
+      {/* Open on a first visit, when there is nothing remembered yet and the
+          sample-trips button is the way in; folded once it has a history. */}
+      <Fold className="sv-plan-memory" icon="brain" label="What Solvik remembers" value={v.memorySummary} startOpen={!v.memoryCount}>
           {v.memoryAiLabel && (
             <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 9, color: "var(--text-accent)", font: "var(--weight-bold) 10.5px/1.3 var(--font-body)", letterSpacing: ".035em", textTransform: "uppercase" }}>
               <Icon name="sparkles" size={13} />{v.memoryAiLabel}
@@ -483,9 +492,28 @@ export function PlanScreen({ v }) {
               </Button>
             )}
           </div>
-        </div>
-      </div>
+      </Fold>
     </div>
+  );
+}
+
+// A settings-like section folded to one row, showing its current value, so
+// the things that change daily stay at the top of Today.
+function Fold({ className, icon, label, value, startOpen = false, children }) {
+  const [open, setOpen] = useState(startOpen);
+  const id = useId();
+  return (
+    <section className={"sv-plan-fold " + className + (open ? " is-open" : "")}>
+      <button className="sv-plan-fold-head" aria-expanded={open} aria-controls={id} onClick={() => setOpen(!open)}>
+        <span className="sv-plan-fold-icon"><Icon name={icon} size={15} /></span>
+        <span className="sv-plan-fold-copy">
+          <span className="sv-plan-fold-label">{label}</span>
+          {value && <span className="sv-plan-fold-value">{value}</span>}
+        </span>
+        <Icon name="chevron-down" size={17} />
+      </button>
+      {open && <div id={id} className="sv-plan-fold-body">{children}</div>}
+    </section>
   );
 }
 

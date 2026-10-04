@@ -59,6 +59,7 @@ test("every headline feature is reachable from a cold start", async ({ page }) =
   // Tailored: the same feed rows have to produce different advice, not just a
   // different label.
   const body = page.locator("body");
+  await page.getByRole("button", { name: /^Tailored for you/ }).click();
   await page.getByRole("button", { name: /^Fixed schedule/i }).click();
   await page.waitForTimeout(700);
   const fixed = await body.innerText();

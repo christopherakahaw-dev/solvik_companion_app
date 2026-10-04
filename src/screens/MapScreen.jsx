@@ -330,7 +330,14 @@ export function MapScreen({ v }) {
                 <IconButton icon="x" label="Close nearby bus stops" tone="ghost" size="sm" onClick={v.closeNearbyBusStops} />
               </div>
               {v.nearbyBusStopsPending && (
-                <div className="sv-nearby-bus-status"><Icon name="loader-2" size={16} style={{ animation: "sv-spin 900ms linear infinite" }} /> Finding your closest stops…</div>
+                <div className="sv-nearby-bus-list" role="status" aria-label="Finding your closest stops">
+                  {[0, 1].map((i) => (
+                    <div key={i} className="sv-nearby-bus-row sv-skeleton-card" aria-hidden="true">
+                      <div className="sv-skeleton-row"><span className="sv-skeleton" style={{ width: 46, height: 20 }} /><span className="sv-skeleton" style={{ width: "55%", height: 14 }} /></div>
+                      <div className="sv-skeleton-row"><span className="sv-skeleton" style={{ width: "48%", height: 40 }} /><span className="sv-skeleton" style={{ width: "48%", height: 40 }} /></div>
+                    </div>
+                  ))}
+                </div>
               )}
               {!v.nearbyBusStopsPending && v.nearbyBusStopsError && (
                 <div className="sv-nearby-bus-error">
@@ -555,9 +562,16 @@ export function MapScreen({ v }) {
                 </div>
               )}
               {v.tripsPending && (
-                <div style={{ display: "flex", alignItems: "center", gap: 9, padding: "18px 0", font: "var(--type-body)", color: "var(--text-muted)" }}>
-                  <Icon name="loader-2" size={16} style={{ animation: "sv-spin 900ms linear infinite" }} />
-                  Planning your trip…
+                <div role="status" aria-label="Planning your trip" className="sv-skeleton-group">
+                  {/* The shape of the cards about to arrive, so nothing jumps
+                      when they do. Screen readers hear the status label. */}
+                  {[0, 1].map((i) => (
+                    <div key={i} className="sv-skeleton-card" aria-hidden="true">
+                      <div className="sv-skeleton-row"><span className="sv-skeleton" style={{ width: 92, height: 26 }} /><span className="sv-skeleton" style={{ width: 70, height: 12, marginLeft: 10 }} /><span className="sv-skeleton" style={{ width: 64, height: 22, marginLeft: "auto", borderRadius: 999 }} /></div>
+                      <div className="sv-skeleton-row"><span className="sv-skeleton" style={{ width: 26, height: 22 }} /><span className="sv-skeleton" style={{ width: 62, height: 26 }} /><span className="sv-skeleton" style={{ width: 54, height: 26 }} /><span className="sv-skeleton" style={{ width: 26, height: 22 }} /></div>
+                      <div className="sv-skeleton-row"><span className="sv-skeleton" style={{ width: "46%", height: 12 }} /><span className="sv-skeleton" style={{ width: 66, height: 40, marginLeft: "auto", borderRadius: 999 }} /></div>
+                    </div>
+                  ))}
                 </div>
               )}
               {!v.tripsPending && v.tripsError && (
@@ -599,33 +613,34 @@ export function MapScreen({ v }) {
               )}
               {v.tripOptions.map((o, i) => (
                 <Card className="sv-route-option-card" key={i} tone={o.tone} padding="tight" interactive onClick={o.pick} style={{ "--sv-card-index": i }}>
+                  {/* Compact by design: three rows say everything needed to choose.
+                      The step-by-step breakdown is one tap away. */}
                   <div className="sv-route-option-heading">
-                    <span style={{ font: "var(--weight-heavy) 32px/1 var(--font-numeric)", letterSpacing: "-.022em", fontVariantNumeric: "tabular-nums", color: "var(--text-strong)", whiteSpace: "nowrap" }}><DurationText mins={o.mins} /></span>
+                    <span className="sv-route-duration"><DurationText mins={o.mins} /></span>
+                    <span className="sv-route-arrive">Arrive {arrivalClockLabel(o.eta)}</span>
                     <div className="sv-route-option-status">
                       <Tag tone={o.tagTone}>{o.tag}</Tag>
-
                     </div>
                   </div>
-                  <div className="sv-route-option-metadata">
-                    <span className="sv-route-meta-item"><Icon name="clock" size={13} /><span>Arrive {arrivalClockLabel(o.eta)}</span></span>
-                    <span className="sv-route-meta-item"><Icon name="wallet" size={14} />{o.fare}</span>
-                      {o.weather && <span className="sv-route-weather-badge" title={o.weather.detail}>
-                        <Icon name={o.weather.pending ? "loader-2" : o.weather.wet ? "cloud-rain" : o.weather.available ? "cloud-sun" : "cloud-off"} size={13} />
-                        <span>{o.weather.title?.replace(/ on this route$/i, "") || "Weather unavailable"}</span>
-                      </span>}
-                  </div>
 
+                  <ol className="sv-journey-strip" aria-label={o.stripSpoken}>
+                    {o.strip.flatMap((item, si) => [
+                      si > 0 ? <li key={`sep${si}`} className="sv-strip-sep" aria-hidden="true"><Icon name="chevron-right" size={12} /></li> : null,
+                      <li key={si} className={item.kind === "walk" ? "is-walk" : "is-ride"} style={item.kind === "ride" ? { background: item.bg, color: item.fg } : undefined} aria-hidden="true">
+                        <Icon name={item.icon} size={13} />
+                        <span>{item.text}</span>
+                      </li>,
+                    ])}
+                  </ol>
 
-                  <div className="sv-route-services">
-                    {o.legs.map((l, li) => (
-                      <span key={li} style={l.style}>
-                        {l.label}
+                  <div className="sv-route-facts">
+                    <span>{o.factsLine}</span>
+                    {o.weather && (o.weather.wet || o.weather.pending) && (
+                      <span className="sv-route-weather-badge" title={o.weather.detail}>
+                        <Icon name={o.weather.pending ? "loader-2" : "cloud-rain"} size={13} />
+                        <span>{o.weather.title?.replace(/ on this route$/i, "") || "Rain"}</span>
                       </span>
-                    ))}
-                    <button type="button" aria-expanded={o.expanded} onClick={(event) => { event.stopPropagation(); o.pick(); }} style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 4, font: "var(--weight-semibold) 11px/1 var(--font-body)", color: "var(--text-muted)", border: 0, padding: "8px 0", background: "transparent", cursor: "pointer" }}>
-                      {o.detailHint}
-                      <Icon name={o.expanded ? "chevron-up" : "chevron-down"} size={13} />
-                    </button>
+                    )}
                   </div>
 
                   {o.expanded && o.details.length > 0 && (
@@ -675,19 +690,19 @@ export function MapScreen({ v }) {
                       ))}
                     </div>
                   )}
-                  <div className="sv-route-crowd-status">
-                    <Icon name="users" size={13} />
-                    <span>{o.crowd === "Crowding unknown" ? "Crowding unavailable" : o.crowd}</span>
-                  </div>
-                  {o.fitReason && (
+                  {/* Why: on the recommended route, or any card that's open. */}
+                  {o.fitReason && (o.recommended || o.expanded) && (
                     <div className="sv-route-reason">
                       <Icon name={o.recommended ? "sparkles" : "info"} size={13} />
                       <p><span className="sv-route-reason-label">{o.fitReasonSource?.includes("Gemini") ? "Gemini explanation" : "Why this route"}</span>{o.fitReason}</p>
                     </div>
                   )}
                   <div className="sv-route-option-footer">
-                    <span>{o.note?.replace(/(\d+) min/g, (_, minutes) => journeyDuration(Number(minutes)))}</span>
-                    <Button size="sm" style={{ minHeight: 40, padding: "0 16px" }} iconRight="navigation" onClick={(event) => { event.stopPropagation(); o.start(); }} disabled={o.recorded}>
+                    <button type="button" className="sv-route-steps-toggle" aria-expanded={o.expanded} onClick={(event) => { event.stopPropagation(); o.pick(); }}>
+                      {o.detailHint}
+                      <Icon name={o.expanded ? "chevron-up" : "chevron-down"} size={13} />
+                    </button>
+                    <Button size="sm" style={{ minHeight: 40, padding: "0 18px" }} iconRight="navigation" onClick={(event) => { event.stopPropagation(); o.start(); }} disabled={o.recorded}>
                       {o.recorded ? "Preview only" : "Go"}
                     </Button>
                   </div>

@@ -8,6 +8,8 @@ import { getNearbyBusStops } from "../api/nearbyStops";
 import { getArrivals } from "../api/arrivals";
 import { getStopArrivals } from "../api/stopArrivals";
 import { getPlaceAt } from "../api/placeAt";
+import { lineColour } from "../lib/lineColours";
+import { journeyStrip } from "../lib/journeyStrip";
 import { stopArrivalsSummary, stopArrivalsView } from "../lib/stopArrivals";
 import { arrivalKeys, detailRows } from "../lib/tripDetail";
 import { commuteOutlook, outlookCodes } from "../lib/outlook";
@@ -3096,9 +3098,7 @@ export class AppLogic extends Component {
     });
   };
   lineStyle(label) {
-    const L = [["NS", "#D42E12", "#fff"], ["EW", "#009645", "#fff"], ["NE", "#9900AA", "#fff"], ["CC", "#FA9E0D", "#201e1d"], ["DT", "#005EC4", "#fff"], ["TE", "#9D5B25", "#fff"]];
-    const hit = L.find(([p]) => String(label).toUpperCase().indexOf(p) === 0);
-    const [bg, fg] = hit ? [hit[1], hit[2]] : ["#201e1d", "#fff"];
+    const { bg, fg } = lineColour(label);
     return { display: "inline-flex", alignItems: "center", borderRadius: "999px", padding: "5px 10px", font: "var(--weight-bold) 12px/1 var(--font-body)", letterSpacing: ".01em", background: bg, color: fg, whiteSpace: "nowrap" };
   }
   level(v) { return v < 0.45 ? "light" : v < 0.75 ? "moderate" : "busy"; }
@@ -3347,6 +3347,7 @@ export class AppLogic extends Component {
         });
       },
       legs: (o.legs || []).map((label) => ({ label, style: this.lineStyle(label) })),
+      ...journeyStrip(o),
       bars: o.crowdLevel ? this.barsFor(o.crowdLevel) : [],
       recorded: !!trips.recorded || !!o.recorded,
       crowd: o.walkOnly ? "Walking route" : o.crowdLevel ? WORD[o.crowdLevel] : "Crowding unknown",

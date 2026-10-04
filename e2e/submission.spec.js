@@ -375,7 +375,7 @@ test("a nearby walking-only result switches from Transit to Walk", async ({ page
   const walk = page.getByRole("button", { name: "Walk", exact: true });
   await expect(walk).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("button", { name: "Transit", exact: true })).toHaveAttribute("aria-pressed", "false");
-  await expect(page.locator(".sv-route-option-card").first()).toContainText("WALK 12.8 km");
+  await expect(page.locator(".sv-route-option-card").first()).toContainText("12.8 km");
   expect(requestedModes[0]).toBe("transit");
   expect(requestedModes.at(-1)).toBe("walk");
   expect(new Set(requestedModes)).toEqual(new Set(["transit", "walk"]));
@@ -974,7 +974,8 @@ test("two trips to a place is enough to be warned about its line", async ({ page
 
   await page.getByRole("button", { name: "Plan", exact: true }).click();
   // The place is also named in the disruption card now, so look for it in the
-  // memory panel's list specifically.
+  // memory panel's list specifically — folded on Today once it has a history.
+  await page.getByRole("button", { name: /^What Solvik remembers/ }).click();
   await expect(page.getByText(/2 visits · via NSL/)).toBeVisible();
   await expect(page.getByText(/The Office/).first()).toBeVisible();
 
