@@ -1110,11 +1110,10 @@
   align-items: center;
   gap: 4px;
   min-width: 34px;
-  height: 30px;
-  padding: 0 9px;
-  border-radius: 9px;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 7px;
   font: var(--weight-heavy) 13px/1 var(--font-body);
-  box-shadow: 0 0 0 2px rgba(255,255,255,.9);
 }
 .sv-nav-next-bus { display: flex; align-items: center; gap: 6px; opacity: .92; }
 .sv-nav-next-bus.is-soon { opacity: 1; font-weight: var(--weight-bold); }
@@ -1130,8 +1129,8 @@
 .sv-nav-strip {
   display: flex;
   align-items: center;
-  gap: 4px;
-  margin: 8px 0 0;
+  gap: 5px;
+  margin: 7px 0 0;
   padding: 0;
   list-style: none;
   overflow: hidden;
@@ -1141,46 +1140,18 @@
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  height: 20px;
-  padding: 0 7px;
-  border-radius: 6px;
-  font: var(--weight-heavy) 10.5px/1 var(--font-body);
+  height: 17px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font: var(--weight-heavy) 10px/1 var(--font-body);
   transition: opacity var(--dur-base, 200ms) var(--ease-standard, ease);
 }
-.sv-nav-strip li.is-walk { padding: 0 3px; background: rgba(255,255,255,.16); color: inherit; }
-.sv-nav-strip li.is-done { opacity: .42; }
-.sv-nav-strip li.is-now { box-shadow: 0 0 0 2px rgba(255,255,255,.95); }
-.sv-nav-alight-live:empty { display: none; }
-.sv-nav-alight {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  padding: 12px 14px;
-  border-radius: 18px;
-  background: var(--text-strong);
-  color: var(--surface-page);
-  box-shadow: var(--shadow-nav);
-  animation: sv-alight-in 360ms cubic-bezier(.16,1,.3,1) both;
-}
-.sv-nav-alight-icon {
-  flex: none;
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: var(--status-warn);
-  color: #fff;
-  animation: sv-alight-ring 1.4s ease-in-out 2;
-}
-.sv-nav-alight-copy { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.sv-nav-alight-copy strong { font: var(--weight-heavy) 15px/1.2 var(--font-display); }
-.sv-nav-alight-copy span { font: var(--weight-medium) 12.5px/1.25 var(--font-body); opacity: .82; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-@keyframes sv-alight-in { from { opacity: 0; transform: translateY(-8px) scale(.98); } }
-@keyframes sv-alight-ring { 0%, 100% { transform: rotate(0); } 15% { transform: rotate(-14deg); } 30% { transform: rotate(12deg); } 45% { transform: rotate(-8deg); } 60% { transform: rotate(0); } }
+.sv-nav-strip li.is-done { opacity: .35; }
+.sv-nav-strip li.is-next { opacity: .7; }
+.sv-nav-getoff { display: flex; align-items: center; gap: 5px; opacity: 1; font-weight: var(--weight-bold); }
+.sv-visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .sv-nav-alight, .sv-nav-alight-icon, .sv-nav-live-dot { animation: none; }
+  .sv-nav-live-dot { animation: none; }
 }
 
 /* Search: saved places as one-tap shortcuts, and an icon for each result's

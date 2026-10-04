@@ -64,17 +64,9 @@ export function NavScreen({ v }) {
           </div>
         )}
         {/* Announced, not just shown: the moment it matters, the phone is
-            often in a pocket or a hand that is holding on. */}
-        <div role="status" aria-live="assertive" className="sv-nav-alight-live">
-          {v.navGetOffAt && (
-            <div className="sv-nav-alight">
-              <span className="sv-nav-alight-icon"><Icon name="bell-ring" size={18} /></span>
-              <span className="sv-nav-alight-copy">
-                <strong>Get off at the next stop</strong>
-                <span>{v.navGetOffAt}</span>
-              </span>
-            </div>
-          )}
+            often in a pocket or a hand that is holding on. The card shows it. */}
+        <div role="status" aria-live="assertive" className="sv-visually-hidden">
+          {v.navGetOffAt ? `Get off at the next stop, ${v.navGetOffAt}` : ""}
         </div>
       </div>
 
@@ -115,7 +107,12 @@ export function NavScreen({ v }) {
             )}
             <div className="sv-nav-current-copy">
               <div className="sv-nav-title">{v.navTitle}</div>
-              {v.navNextBus ? (
+              {v.navGetOffAt ? (
+                <div className="sv-nav-detail sv-nav-getoff">
+                  <Icon name="bell-ring" size={12} />
+                  Get off at the next stop
+                </div>
+              ) : v.navNextBus ? (
                 <div className={"sv-nav-detail sv-nav-next-bus" + (v.navNextBus.soon ? " is-soon" : "")}>
                   {v.navNextBus.live && <span className="sv-nav-live-dot" aria-hidden="true" />}
                   {v.navNextBus.text}
@@ -129,13 +126,15 @@ export function NavScreen({ v }) {
               <span>to go</span>
             </div>
           </div>
-          {v.navStrip.length > 1 && (
+          {/* Rides only: the walks between them are the gaps. One ride is
+              already the badge, so the strip waits for a change. */}
+          {v.navStrip.filter((item) => item.kind === "ride").length > 1 && (
             <ol className="sv-nav-strip" aria-label="Your journey">
-              {v.navStrip.map((item, i) => (
+              {v.navStrip.filter((item) => item.kind === "ride").map((item, i) => (
                 <li
                   key={i}
-                  className={"is-" + item.state + (item.kind === "walk" ? " is-walk" : "")}
-                  style={item.kind === "ride" ? { background: item.bg, color: item.fg } : undefined}
+                  className={"is-" + item.state}
+                  style={{ background: item.bg, color: item.fg }}
                   aria-label={`${item.spoken}${item.state === "now" ? ", now" : item.state === "done" ? ", done" : ""}`}
                 >
                   <Icon name={item.icon} size={11} />

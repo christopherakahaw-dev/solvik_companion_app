@@ -77,7 +77,7 @@ const ORIGIN_FALLBACK = [1.3521, 103.8198];
 // and before the map follows them rather than holding still.
 const REPLAN_DRIFT_M = 150;
 const MAP_FOLLOW_M = 120;
-const NAV_COMPACT_H = 196;
+const NAV_COMPACT_H = 188;
 // The phone route sheet's full height stops this far from the top, below the
 // back and alerts buttons (they end ~60px down). Mirrored in app.css.
 const ROUTE_SHEET_TOP = 70;
